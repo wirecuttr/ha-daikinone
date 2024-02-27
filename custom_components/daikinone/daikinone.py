@@ -23,6 +23,7 @@ DAIKIN_API_URL_LOCATIONS = urljoin(DAIKIN_API_URL_BASE, "/locations")
 DAIKIN_API_URL_DEVICES = urljoin(DAIKIN_API_URL_BASE, "/devices")
 DAIKIN_API_URL_DEVICE_DATA = urljoin(DAIKIN_API_URL_BASE, "/deviceData")
 
+eids = []   #list of all eids used to check for duplicates
 
 @dataclass
 class DaikinUserCredentials:
@@ -285,11 +286,16 @@ class DaikinOne:
     def __map_equipment(self, payload: DaikinDeviceDataResponse) -> dict[str, DaikinEquipment]:
         equipment: dict[str, DaikinEquipment] = {}
 
+
+
         # air handler
         if payload.data["ctAHUnitType"] < 255:
             model = payload.data["ctAHModelNoCharacter1_15"].strip()
             serial = payload.data["ctAHSerialNoCharacter1_15"].strip()
-            eid = f"{payload.id}-{model}-{serial}"
+            eid = f"{model}-{serial}"
+            if eid in eids:
+                eid = f"{payload.id}-{model}-{serial}"
+            eids.append(eid)
             name = "Air Handler"
 
             equipment[eid] = DaikinIndoorUnit(
@@ -316,7 +322,9 @@ class DaikinOne:
         if payload.data["ctIFCUnitType"] < 255:
             model = payload.data["ctIFCModelNoCharacter1_15"].strip()
             serial = payload.data["ctIFCSerialNoCharacter1_15"].strip()
-            eid = f"{payload.id}-{model}-{serial}"
+            eid = f"{model}-{serial}"
+            if eid in eids:
+                eid = f"{payload.id}-{model}-{serial}"
             name = "Furnace"
 
             equipment[eid] = DaikinIndoorUnit(
@@ -343,7 +351,9 @@ class DaikinOne:
         if payload.data["ctOutdoorUnitType"] < 255:
             model = payload.data["ctOutdoorModelNoCharacter1_15"].strip()
             serial = payload.data["ctOutdoorSerialNoCharacter1_15"].strip()
-            eid = f"{payload.id}-{model}-{serial}"
+            eid = f"{model}-{serial}"
+            if eid in eids:
+                eid = f"{payload.id}-{model}-{serial}"
 
             # assume it can cool, and if it can also heat it should be a heat pump
             name = "Condensing Unit"
@@ -393,7 +403,9 @@ class DaikinOne:
         if payload.data["ctCoilUnitType"] < 255:
             model = "EEV Coil"
             serial = payload.data["ctCoilSerialNoCharacter1_15"].strip()
-            eid = f"{payload.id}-eevcoil-{serial}"
+            eid = f"eevcoil-{serial}"
+            if eid in eids:
+                eid = f"{payload.id}-eevcoil-{serial}"
             name = "EEV Coil"
 
             equipment[eid] = DaikinEEVCoil(
