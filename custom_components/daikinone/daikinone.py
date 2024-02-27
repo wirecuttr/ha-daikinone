@@ -285,7 +285,7 @@ class DaikinOne:
 
     def __map_equipment(self, payload: DaikinDeviceDataResponse) -> dict[str, DaikinEquipment]:
         equipment: dict[str, DaikinEquipment] = {}
-
+        global eids
 
 
         # air handler
