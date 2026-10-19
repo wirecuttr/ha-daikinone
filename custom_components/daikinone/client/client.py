@@ -123,4 +123,3 @@ class DaikinOne:
             method="PUT",
             body={"schedOverride": 0, "schedEnabled": True},
         )
-
