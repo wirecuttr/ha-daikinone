@@ -105,6 +105,8 @@ class TestSelectPlatformSetup:
         speed_entity = fan_speed_entities[0]
         assert speed_entity.entity_description.entity_category == EntityCategory.CONFIG
         assert speed_entity.entity_description.key == "fan_speed"
+        assert speed_entity.entity_description.name == "Fan speed"
+        assert speed_entity.entity_description.translation_key == "fan_speed"
         assert speed_entity.current_option == "Low"
 
     async def test_fan_circulation_duty_cycle_created_when_duration_present(self, mock_data: DaikinOneData) -> None:
@@ -260,6 +262,10 @@ class TestFanCirculationDutyCycleSelect:
             SelectEntityDescription(key="fan_circulation_duty_cycle"), data_v0, thermostat
         )
         assert duty_v0.unique_id == "device123-fan_circulation_duty_cycle"
+        speed_v0 = DaikinOneFanSpeedSelect(
+            SelectEntityDescription(key="fan_speed", name="Fan speed"), data_v0, thermostat
+        )
+        assert speed_v0.unique_id == "device123-fan_speed"
 
         # Schema v1
         entry_v1 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 1})
@@ -268,6 +274,10 @@ class TestFanCirculationDutyCycleSelect:
             SelectEntityDescription(key="fan_circulation_duty_cycle"), data_v1, thermostat
         )
         assert duty_v1.unique_id == "device123-fan_circulation_duty_cycle"
+        speed_v1 = DaikinOneFanSpeedSelect(
+            SelectEntityDescription(key="fan_speed", name="Fan speed"), data_v1, thermostat
+        )
+        assert speed_v1.unique_id == "device123-fan_speed"
 
         # Invalid Schema
         entry_inv = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 99})
@@ -276,3 +286,5 @@ class TestFanCirculationDutyCycleSelect:
             DaikinOneFanCirculationDutyCycleSelect(
                 SelectEntityDescription(key="fan_circulation_duty_cycle"), data_inv, thermostat
             )
+        with pytest.raises(ValueError, match="unexpected entity uid schema version"):
+            DaikinOneFanSpeedSelect(SelectEntityDescription(key="fan_speed", name="Fan speed"), data_inv, thermostat)
