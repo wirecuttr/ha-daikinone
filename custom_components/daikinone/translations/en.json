@@ -31,6 +31,25 @@
           }
         }
       }
+    },
+    "sensor": {
+      "operating_state": {
+        "name": "Operating state",
+        "state": {
+          "idle": "Idle",
+          "heating_startup": "Heating (starting up)",
+          "heating": "Heating",
+          "heat_pump_heating": "Heat pump heating active",
+          "gas_heating": "Gas heating active",
+          "electric_heating": "Electric heating active",
+          "emergency_heating": "Emergency heating active",
+          "cooling": "Cooling active",
+          "drying": "Dehumidifying active",
+          "defrost": "Heat pump defrosting",
+          "fan_only": "Circulating air",
+          "off": "Off"
+        }
+      }
     }
   }
 }

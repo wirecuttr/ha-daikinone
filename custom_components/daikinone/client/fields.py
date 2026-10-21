@@ -87,6 +87,7 @@ F_OD_SERIAL = StringField("ctOutdoorSerialNoCharacter1_15")
 F_OD_FIRMWARE = StringField("ctOutdoorControlSoftwareVersion")
 F_OD_INVERTER_FIRMWARE = StringField("ctOutdoorInverterSoftwareVersion")
 F_OD_MODE = StringField("ctOutdoorMode")
+F_OD_OPERATION_MODE = IntField("ctOutdoorOperationMode", Sentinel.U8)
 
 F_OD_COMPRESSOR_RUNTIME = RuntimeField("ctOutdoorCompressorRunTime")
 

@@ -1,7 +1,7 @@
 """Domain models exposed by the Daikin client to the rest of the integration."""
 
 from datetime import timedelta
-from enum import Enum, auto
+from enum import Enum, StrEnum, auto
 
 from pydantic.dataclasses import dataclass
 
@@ -93,6 +93,7 @@ class DaikinOutdoorUnit(DaikinEquipment):
     crank_case_heater: DaikinOutdoorUnitHeaterStatus
     drain_pan_heater: DaikinOutdoorUnitHeaterStatus
     preheat_heater: DaikinOutdoorUnitHeaterStatus
+    operation_mode: int | None = None
 
     # needs confirmation on unit in raw data
     # preheat_output_watts: int | None
@@ -166,6 +167,21 @@ class DaikinThermostatStatus(Enum):
     @classmethod
     def _missing_(cls, value: object) -> "DaikinThermostatStatus":
         return cls.UNKNOWN
+
+
+class DaikinOperatingState(StrEnum):
+    IDLE = "idle"
+    HEATING_STARTUP = "heating_startup"
+    HEATING = "heating"
+    HEAT_PUMP_HEATING = "heat_pump_heating"
+    GAS_HEATING = "gas_heating"
+    ELECTRIC_HEATING = "electric_heating"
+    EMERGENCY_HEATING = "emergency_heating"
+    COOLING = "cooling"
+    DRYING = "drying"
+    DEFROST = "defrost"
+    FAN_ONLY = "fan_only"
+    OFF = "off"
 
 
 @dataclass
