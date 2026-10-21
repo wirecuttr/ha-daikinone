@@ -50,7 +50,7 @@ async def async_setup_entry(
             DaikinOneFanSpeedSelect(
                 description=SelectEntityDescription(
                     key="fan_speed",
-                    name="Fan speed",
+                    name="Fan circulation speed",
                     has_entity_name=True,
                     icon="mdi:fan",
                     entity_category=EntityCategory.CONFIG,

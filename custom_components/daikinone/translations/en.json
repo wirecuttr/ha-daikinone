@@ -124,7 +124,7 @@
     },
     "select": {
       "fan_speed": {
-        "name": "Fan speed"
+        "name": "Fan circulation speed"
       },
       "fan_circulation_duty_cycle": {
         "name": "Fan circulation duty cycle"
