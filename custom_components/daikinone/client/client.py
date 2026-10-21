@@ -29,6 +29,7 @@ class DaikinOne:
 
     def __init__(self, creds: DaikinUserCredentials) -> None:
         self._transport = DaikinTransport(creds)
+        self._unsupported_device_ids: set[str] = set()
 
     async def login(self) -> bool:
         return await self._transport.login()
@@ -49,7 +50,19 @@ class DaikinOne:
             if not r.online and len(r.data) == 0:
                 log.warning(f"Skipping offline device with no data: {r.name} ({r.id})")
                 continue
-            self.__thermostats[r.id] = map_thermostat(r)
+            try:
+                self.__thermostats[r.id] = map_thermostat(r)
+            except (KeyError, ValueError, TypeError) as err:
+                if r.id not in self._unsupported_device_ids:
+                    self._unsupported_device_ids.add(r.id)
+                    log.warning(
+                        "Skipping unsupported device: %s (%s) - %s",
+                        r.name,
+                        r.id,
+                        err,
+                    )
+                log.debug("Failed to map device %s (%s)", r.name, r.id, exc_info=True)
+                continue
 
         log.info(f"Cached {len(self.__thermostats)} thermostats")
 
