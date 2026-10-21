@@ -36,7 +36,7 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         capabilities.add(DaikinThermostatCapability.HEAT)
     if payload.data.get("ctSystemCapCool"):
         capabilities.add(DaikinThermostatCapability.COOL)
-    if payload.data.get("ctSystemCapEmergencyHeat"):
+    if payload.data.get("ctSystemCapEmergencyHeat") and payload.data.get("modeEmHeatAvailable", True):
         capabilities.add(DaikinThermostatCapability.EMERGENCY_HEAT)
 
     away_mode = payload.data.get("geofencingAway")

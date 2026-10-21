@@ -13,6 +13,7 @@ from custom_components.daikinone.client.models import (
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
+    DaikinThermostatCapability,
     DaikinThermostatFanMode,
     DaikinThermostatFanSpeed,
     DaikinThermostatMode,
@@ -962,3 +963,35 @@ class TestMapThermostatAwayMode:
         device_data["data"].pop("geofencingAway", None)
         thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
         assert thermostat.away_mode is None
+
+
+class TestThermostatEmergencyHeatCapability:
+    """Test emergency heat capability detection with modeEmHeatAvailable guard (Issue #25)."""
+
+    def test_emergency_heat_capability_when_em_heat_available_true(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_omitted_when_em_heat_available_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+    def test_emergency_heat_capability_backward_compatibility_when_field_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"].pop("modeEmHeatAvailable", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_when_system_cap_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = False
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
