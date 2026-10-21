@@ -145,6 +145,14 @@ class DaikinOne:
             body={"oneCleanFanActive": active},
         )
 
+    async def set_thermostat_away_mode(self, thermostat_id: str, away: bool) -> None:
+        """Set thermostat geofencing away mode."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"geofencingAway": away},
+        )
+
     async def set_dual_fuel_furnace_lockout_enable(self, thermostat_id: str, enabled: bool) -> None:
         """Enable or disable dual-fuel furnace lockout (prioritize efficiency)."""
         await self._transport.request(

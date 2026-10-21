@@ -39,6 +39,10 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     if payload.data.get("ctSystemCapEmergencyHeat"):
         capabilities.add(DaikinThermostatCapability.EMERGENCY_HEAT)
 
+    away_mode = payload.data.get("geofencingAway")
+    if away_mode is not None:
+        away_mode = bool(away_mode)
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -70,6 +74,7 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         one_clean_fan_active=payload.data.get("oneCleanFanActive"),
         dual_fuel_furnace_lockout_enable=payload.data.get("ctDualFuelFurnaceLockoutEnable"),
         equipment=map_equipment(payload),
+        away_mode=away_mode,
     )
 
 

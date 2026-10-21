@@ -29,6 +29,7 @@
         "state_attributes": {
           "preset_mode": {
             "state": {
+              "away": "Away",
               "emergency_heat": "Emergency heat"
             }
           },
@@ -39,6 +40,11 @@
             }
           }
         }
+      }
+    },
+    "switch": {
+      "emergency_heat": {
+        "name": "Emergency heat"
       }
     },
     "sensor": {

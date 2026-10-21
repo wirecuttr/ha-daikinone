@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.mapping import determine_operating_state
+from custom_components.daikinone.client.mapping import determine_operating_state, map_thermostat
+from custom_components.daikinone.client.wire import DaikinDeviceDataResponse
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinIndoorUnit,
@@ -938,3 +939,26 @@ class TestDetermineOperatingState:
         state, fuel = determine_operating_state(thermostat)
         assert state == DaikinOperatingState.HEATING
         assert fuel is None
+
+
+class TestMapThermostatAwayMode:
+    def test_map_thermostat_away_mode_active(self) -> None:
+        """Verify that geofencingAway: true maps to away_mode=True."""
+        device_data = _make_device()
+        device_data["data"]["geofencingAway"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is True
+
+    def test_map_thermostat_away_mode_inactive(self) -> None:
+        """Verify that geofencingAway: false maps to away_mode=False."""
+        device_data = _make_device()
+        device_data["data"]["geofencingAway"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is False
+
+    def test_map_thermostat_away_mode_absent(self) -> None:
+        """Verify that missing geofencingAway preserves away_mode=None (nullable guard)."""
+        device_data = _make_device()
+        device_data["data"].pop("geofencingAway", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is None

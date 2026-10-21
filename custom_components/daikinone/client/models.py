@@ -239,3 +239,5 @@ class DaikinThermostat(DaikinDevice):
     one_clean_fan_active: bool | None
     dual_fuel_furnace_lockout_enable: bool | None
     equipment: dict[str, DaikinEquipment]
+    # Away Mode: True when geofencing away setback is active; None when unsupported
+    away_mode: bool | None = None
