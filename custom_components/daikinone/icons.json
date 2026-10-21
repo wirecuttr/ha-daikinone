@@ -35,6 +35,11 @@
           "off": "mdi:power-off"
         }
       }
+    },
+    "number": {
+      "aux_heat_lockout_temperature": {
+        "default": "mdi:thermometer"
+      }
     }
   }
 }

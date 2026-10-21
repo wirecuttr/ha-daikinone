@@ -264,6 +264,7 @@ class TestMappingPreservesValidFields:
 
         thermostat = daikin_client.get_thermostats()["device123"]
         assert thermostat.dual_fuel_furnace_lockout_enable is True
+        assert thermostat.aux_heat_lockout_temp == 4.5
 
     async def test_dual_fuel_fields_absent_are_none(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device()
@@ -274,6 +275,42 @@ class TestMappingPreservesValidFields:
 
         thermostat = daikin_client.get_thermostats()["device123"]
         assert thermostat.dual_fuel_furnace_lockout_enable is None
+        assert thermostat.aux_heat_lockout_temp is None
+
+    @pytest.mark.parametrize(
+        ("raw_val", "expected"),
+        [
+            (4.5, 4.5),
+            (5, 5.0),
+            (-15.0, -15.0),
+            ("3.5", 3.5),
+            (None, None),
+            ("invalid", None),
+        ],
+    )
+    async def test_aux_heat_lockout_temp_mapping(
+        self, daikin_client: DaikinOne, raw_val: Any, expected: float | None
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"]["auxHeatLockoutTemp"] = raw_val
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.aux_heat_lockout_temp == expected
+
+    async def test_aux_heat_lockout_temp_absent_key(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].pop("auxHeatLockoutTemp", None)
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.aux_heat_lockout_temp is None
 
 
 class TestEquipmentSkippedOnInvalidIdentity:

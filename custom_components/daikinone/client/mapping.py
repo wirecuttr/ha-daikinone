@@ -51,6 +51,13 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         else None
     )
 
+    aux_heat_lockout_temp = payload.data.get("auxHeatLockoutTemp")
+    if aux_heat_lockout_temp is not None:
+        try:
+            aux_heat_lockout_temp = float(aux_heat_lockout_temp)
+        except ValueError, TypeError:
+            aux_heat_lockout_temp = None
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -86,6 +93,7 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         fan_circulate_start=payload.data.get("fanCirculateStart"),
         fan_circulate_stop=payload.data.get("fanCirculateStop"),
         fan_circulate_duration=fan_circulate_duration,
+        aux_heat_lockout_temp=aux_heat_lockout_temp,
     )
 
 

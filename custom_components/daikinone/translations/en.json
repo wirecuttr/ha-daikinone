@@ -126,6 +126,11 @@
       "fan_circulation_duty_cycle": {
         "name": "Fan circulation duty cycle"
       }
+    },
+    "number": {
+      "aux_heat_lockout_temperature": {
+        "name": "Aux heat lockout temperature"
+      }
     }
   }
 }

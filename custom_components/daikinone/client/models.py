@@ -263,3 +263,4 @@ class DaikinThermostat(DaikinDevice):
     fan_circulate_start: int | None = None
     fan_circulate_stop: int | None = None
     fan_circulate_duration: DaikinThermostatFanCirculateDuration | None = None
+    aux_heat_lockout_temp: float | None = None

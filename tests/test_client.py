@@ -235,3 +235,13 @@ class TestUnsupportedDeviceHandling:
                 method="PUT",
                 body={"fanCirculateDuration": 3},
             )
+
+    async def test_set_thermostat_aux_heat_lockout_temp(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_aux_heat_lockout_temp sends PUT request with auxHeatLockoutTemp payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_aux_heat_lockout_temp("device123", 4.5)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"auxHeatLockoutTemp": 4.5},
+            )
