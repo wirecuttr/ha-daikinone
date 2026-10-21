@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.components.number import NumberDeviceClass
+from homeassistant.components.number import NumberDeviceClass, NumberMode
 from homeassistant.const import EntityCategory, UnitOfTemperature
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
@@ -103,6 +103,8 @@ class TestNumberPlatformSetup:
         assert entity.entity_description.device_class == NumberDeviceClass.TEMPERATURE
         assert entity.entity_description.native_unit_of_measurement == UnitOfTemperature.CELSIUS
         assert entity.entity_description.native_step == 0.5
+        assert entity.entity_description.mode == NumberMode.BOX
+        assert entity.mode == NumberMode.BOX
         assert entity.entity_description.entity_category == EntityCategory.CONFIG
         assert entity.entity_description.has_entity_name is True
         assert entity.unique_id == "device123-dual_fuel_balance_point"

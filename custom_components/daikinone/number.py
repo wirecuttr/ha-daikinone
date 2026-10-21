@@ -6,6 +6,7 @@ from homeassistant.components.number import (
     NumberDeviceClass,
     NumberEntity,
     NumberEntityDescription,
+    NumberMode,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, UnitOfTemperature
@@ -30,6 +31,7 @@ DUAL_FUEL_BALANCE_POINT_DESCRIPTION = NumberEntityDescription(
     native_max_value=22.0,
     entity_category=EntityCategory.CONFIG,
     has_entity_name=True,
+    mode=NumberMode.BOX,
 )
 
 
@@ -56,6 +58,7 @@ class DaikinOneDualFuelBalancePointNumber(DaikinOneEntity[DaikinThermostat], Num
     _attr_device_class = NumberDeviceClass.TEMPERATURE
     _attr_has_entity_name = True
     _attr_translation_key = "dual_fuel_balance_point"
+    _attr_mode = NumberMode.BOX
 
     def __init__(
         self,
