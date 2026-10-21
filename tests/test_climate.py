@@ -105,15 +105,14 @@ class TestClimatePresets:
         assert PRESET_AWAY in c_away.preset_modes
         assert c_away.supported_features & ClimateEntityFeature.PRESET_MODE
 
-        # Thermostat supporting away mode and emergency heat
+        # Thermostat supporting away mode and emergency heat (emergency heat is on switch platform, not in presets)
         t_full = _create_mock_thermostat(
             capabilities={DaikinThermostatCapability.HEAT, DaikinThermostatCapability.EMERGENCY_HEAT},
             away_mode=False,
         )
         c_full = DaikinOneThermostat(_climate_desc(), mock_data, t_full)
-        assert PRESET_NONE in c_full.preset_modes
-        assert PRESET_AWAY in c_full.preset_modes
-        assert DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value in c_full.preset_modes
+        assert c_full.preset_modes == [PRESET_NONE, PRESET_AWAY]
+        assert DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value not in c_full.preset_modes
         assert c_full.supported_features & ClimateEntityFeature.PRESET_MODE
 
     async def test_climate_preset_mode_away_activation(self, mock_data: DaikinOneData) -> None:
@@ -140,12 +139,12 @@ class TestClimatePresets:
         mock_data.daikin.set_thermostat_away_mode.assert_called_once_with(thermostat.id, False)
         assert climate.preset_mode == PRESET_NONE
 
-    async def test_climate_preset_mode_none_restores_heat_from_aux_heat(self, mock_data: DaikinOneData) -> None:
-        """Verify selecting preset_mode='none' when in AUX_HEAT calls set_thermostat_mode(HEAT)."""
+    async def test_climate_preset_mode_none_preserves_aux_heat(self, mock_data: DaikinOneData) -> None:
+        """Verify selecting preset_mode='none' does not turn off AUX_HEAT mode (orthogonal control)."""
         thermostat = _create_mock_thermostat(
             capabilities={DaikinThermostatCapability.EMERGENCY_HEAT},
             mode=DaikinThermostatMode.AUX_HEAT,
-            away_mode=False,
+            away_mode=True,
         )
         mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
 
@@ -153,7 +152,9 @@ class TestClimatePresets:
         climate.async_write_ha_state = MagicMock()
 
         await climate.async_set_preset_mode(PRESET_NONE)
-        mock_data.daikin.set_thermostat_mode.assert_called_once_with(thermostat.id, DaikinThermostatMode.HEAT)
+        mock_data.daikin.set_thermostat_away_mode.assert_called_once_with(thermostat.id, False)
+        # Verify mode was NOT changed away from AUX_HEAT
+        mock_data.daikin.set_thermostat_mode.assert_not_called()
 
     async def test_climate_emergency_heat_preset_alias_warning(
         self, mock_data: DaikinOneData, caplog: pytest.LogCaptureFixture

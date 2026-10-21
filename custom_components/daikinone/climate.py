@@ -121,12 +121,6 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
             self._attr_supported_features |= ClimateEntityFeature.PRESET_MODE
             self._attr_preset_modes.append(PRESET_AWAY)
 
-        # Stage 1: Retain emergency_heat as a deprecated alias if capability is present
-        if DaikinThermostatCapability.EMERGENCY_HEAT in self._device.capabilities:
-            self._attr_supported_features |= ClimateEntityFeature.PRESET_MODE
-            if DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value not in self._attr_preset_modes:
-                self._attr_preset_modes.append(DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value)
-
     def get_hvac_modes(self) -> list[HVACMode]:
         modes: list[HVACMode] = []
 
@@ -203,10 +197,6 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
                         optimistic_update=update_home,
                         check=lambda t: t.away_mode is False,
                     )
-
-                # If in legacy AUX_HEAT mode, restore standard HEAT
-                if self._device.mode == DaikinThermostatMode.AUX_HEAT:
-                    await self.set_thermostat_mode(DaikinThermostatMode.HEAT)
 
             case DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value:
                 log.warning(
@@ -353,9 +343,6 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         # Determine active preset mode
         if self._device.away_mode is True:
             self._attr_preset_mode = PRESET_AWAY
-        elif self._device.mode == DaikinThermostatMode.AUX_HEAT:
-            # Stage 1: Reflect emergency_heat alias if currently active
-            self._attr_preset_mode = DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value
         else:
             self._attr_preset_mode = DaikinOneThermostatPresetMode.NONE.value
 
