@@ -112,6 +112,12 @@ class DaikinOneDualFuelBalancePointNumber(DaikinOneEntity[DaikinThermostat], Num
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the auxiliary heat lockout balance point temperature."""
-        self._device.aux_heat_lockout_temp = value
-        self.async_write_ha_state()
-        await self._data.daikin.set_thermostat_aux_heat_lockout_temp(self._device.id, value)
+
+        def update(t: DaikinThermostat) -> None:
+            t.aux_heat_lockout_temp = value
+
+        await self.update_state_optimistically(
+            operation=lambda: self._data.daikin.set_thermostat_aux_heat_lockout_temp(self._device.id, value),
+            optimistic_update=update,
+            check=lambda t: t.aux_heat_lockout_temp == value,
+        )
