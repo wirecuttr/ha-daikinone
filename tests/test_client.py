@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.models import DaikinUserCredentials
+from custom_components.daikinone.client.models import (
+    DaikinThermostatFanCirculateDuration,
+    DaikinUserCredentials,
+)
 from custom_components.daikinone.client.wire import DAIKIN_API_URL_DEVICE_DATA
 from tests.test_mapping import _make_device
 
@@ -199,4 +202,36 @@ class TestUnsupportedDeviceHandling:
                 url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
                 method="PUT",
                 body={"geofencingAway": False},
+            )
+
+    async def test_set_thermostat_fan_circulate_start(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_fan_circulate_start sends PUT request with fanCirculateStart payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_fan_circulate_start("device123", 32)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"fanCirculateStart": 32},
+            )
+
+    async def test_set_thermostat_fan_circulate_stop(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_fan_circulate_stop sends PUT request with fanCirculateStop payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_fan_circulate_stop("device123", 88)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"fanCirculateStop": 88},
+            )
+
+    async def test_set_thermostat_fan_circulate_duration(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_fan_circulate_duration sends PUT request with fanCirculateDuration payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_fan_circulate_duration(
+                "device123", DaikinThermostatFanCirculateDuration.MIN_30
+            )
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"fanCirculateDuration": 3},
             )

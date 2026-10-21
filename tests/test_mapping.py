@@ -15,6 +15,7 @@ from custom_components.daikinone.client.models import (
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
     DaikinThermostatCapability,
+    DaikinThermostatFanCirculateDuration,
     DaikinThermostatFanMode,
     DaikinThermostatFanSpeed,
     DaikinThermostatMode,
@@ -1077,3 +1078,63 @@ class TestThermostatEmergencyHeatCapability:
         device_data["data"]["modeEmHeatAvailable"] = True
         thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
         assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+
+class TestMapThermostatFanCirculation:
+    """Test mapping of fan circulation scheduling and duration fields."""
+
+    def test_fan_circulate_scheduling_valid_mapping(self) -> None:
+        """Verify valid integers for fanCirculateStart, fanCirculateStop, and fanCirculateDuration."""
+        device_data = _make_device()
+        device_data["data"]["fanCirculateStart"] = 32
+        device_data["data"]["fanCirculateStop"] = 88
+        device_data["data"]["fanCirculateDuration"] = 2
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.fan_circulate_start == 32
+        assert thermostat.fan_circulate_stop == 88
+        assert thermostat.fan_circulate_duration == DaikinThermostatFanCirculateDuration.MIN_15
+
+    @pytest.mark.parametrize(
+        ("raw_value", "expected_enum"),
+        [
+            (0, DaikinThermostatFanCirculateDuration.CONTINUOUS),
+            (1, DaikinThermostatFanCirculateDuration.MIN_5),
+            (2, DaikinThermostatFanCirculateDuration.MIN_15),
+            (3, DaikinThermostatFanCirculateDuration.MIN_30),
+            (4, DaikinThermostatFanCirculateDuration.MIN_45),
+        ],
+    )
+    def test_fan_circulate_duration_enum_values(
+        self, raw_value: int, expected_enum: DaikinThermostatFanCirculateDuration
+    ) -> None:
+        """Verify each documented duty cycle raw integer maps to the expected enum member."""
+        device_data = _make_device()
+        device_data["data"]["fanCirculateDuration"] = raw_value
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.fan_circulate_duration == expected_enum
+
+    @pytest.mark.parametrize("unknown_value", [255, 99, -1])
+    def test_fan_circulate_duration_unknown_fallback(self, unknown_value: int) -> None:
+        """Verify undocumented or sentinel duration values fall back to UNKNOWN via _missing_."""
+        device_data = _make_device()
+        device_data["data"]["fanCirculateDuration"] = unknown_value
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.fan_circulate_duration == DaikinThermostatFanCirculateDuration.UNKNOWN
+
+    def test_fan_circulate_fields_absent(self) -> None:
+        """Verify missing fan circulation keys map to None."""
+        device_data = _make_device()
+        device_data["data"].pop("fanCirculateStart", None)
+        device_data["data"].pop("fanCirculateStop", None)
+        device_data["data"].pop("fanCirculateDuration", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.fan_circulate_start is None
+        assert thermostat.fan_circulate_stop is None
+        assert thermostat.fan_circulate_duration is None
+
+    def test_fan_circulate_duration_none_in_payload(self) -> None:
+        """Verify fanCirculateDuration with explicit None maps to None."""
+        device_data = _make_device()
+        device_data["data"]["fanCirculateDuration"] = None
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.fan_circulate_duration is None

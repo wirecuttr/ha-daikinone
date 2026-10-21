@@ -15,6 +15,7 @@ from custom_components.daikinone.client.models import (
     DaikinOutdoorUnitReversingValveStatus,
     DaikinThermostat,
     DaikinThermostatCapability,
+    DaikinThermostatFanCirculateDuration,
     DaikinThermostatFanMode,
     DaikinThermostatFanSpeed,
     DaikinThermostatMode,
@@ -42,6 +43,13 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     away_mode = payload.data.get("geofencingAway")
     if away_mode is not None:
         away_mode = bool(away_mode)
+
+    fan_circulate_duration_raw = payload.data.get("fanCirculateDuration")
+    fan_circulate_duration = (
+        DaikinThermostatFanCirculateDuration(fan_circulate_duration_raw)
+        if fan_circulate_duration_raw is not None
+        else None
+    )
 
     return DaikinThermostat(
         id=payload.id,
@@ -75,6 +83,9 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         dual_fuel_furnace_lockout_enable=payload.data.get("ctDualFuelFurnaceLockoutEnable"),
         equipment=map_equipment(payload),
         away_mode=away_mode,
+        fan_circulate_start=payload.data.get("fanCirculateStart"),
+        fan_circulate_stop=payload.data.get("fanCirculateStop"),
+        fan_circulate_duration=fan_circulate_duration,
     )
 
 

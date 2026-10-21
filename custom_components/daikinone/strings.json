@@ -103,6 +103,19 @@
           "unknown": "Unknown"
         }
       }
+    },
+    "time": {
+      "fan_circulation_start": {
+        "name": "Fan circulation start time"
+      },
+      "fan_circulation_stop": {
+        "name": "Fan circulation stop time"
+      }
+    },
+    "select": {
+      "fan_circulation_duty_cycle": {
+        "name": "Fan circulation duty cycle"
+      }
     }
   }
 }
