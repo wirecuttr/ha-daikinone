@@ -50,11 +50,12 @@ async def async_setup_entry(
             DaikinOneFanSpeedSelect(
                 description=SelectEntityDescription(
                     key="fan_speed",
-                    name="Fan Speed",
+                    name="Fan speed",
                     has_entity_name=True,
                     icon="mdi:fan",
                     entity_category=EntityCategory.CONFIG,
                     options=[speed.name.capitalize() for speed in DaikinOneThermostatFanSpeed],
+                    translation_key="fan_speed",
                 ),
                 data=data,
                 thermostat=thermostat,

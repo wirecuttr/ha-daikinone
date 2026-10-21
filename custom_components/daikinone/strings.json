@@ -113,6 +113,9 @@
       }
     },
     "select": {
+      "fan_speed": {
+        "name": "Fan speed"
+      },
       "fan_circulation_duty_cycle": {
         "name": "Fan circulation duty cycle"
       }
