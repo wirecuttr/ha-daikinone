@@ -205,7 +205,6 @@ class DaikinThermostat(DaikinDevice):
     fan_mode: DaikinThermostatFanMode
     fan_speed: DaikinThermostatFanSpeed
     schedule: DaikinThermostatSchedule
-    away_mode: bool
     indoor_temperature: Temperature | None
     indoor_humidity: int | None
     set_point_heat: Temperature | None
@@ -219,3 +218,4 @@ class DaikinThermostat(DaikinDevice):
     air_quality_outdoor: DaikinOneAirQualitySensorOutdoor | None
     air_quality_indoor: DaikinOneAirQualitySensorIndoor | None
     equipment: dict[str, DaikinEquipment]
+    away_mode: bool | None = None

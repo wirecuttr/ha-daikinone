@@ -1,12 +1,21 @@
+from typing import Any
+
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
-from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.client.models import DaikinThermostat
+from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.entity import DaikinOneEntity
+
+AWAY_MODE_DESCRIPTION = SwitchEntityDescription(
+    key="away_mode",
+    name="Away Mode",
+    has_entity_name=True,
+    icon="mdi:home-export-outline",
+)
 
 
 async def async_setup_entry(
@@ -20,24 +29,19 @@ async def async_setup_entry(
 
     entities: list[SwitchEntity] = []
     for thermostat in thermostats:
-        entities.append(
-            DaikinOneAwayModeSwitch(
-                description=SwitchEntityDescription(
-                    key="away_mode",
-                    name="Away Mode",
-                    has_entity_name=True,
-                    icon="mdi:home-export-outline",
-                ),
-                data=data,
-                thermostat=thermostat,
-            )
-        )
+        if thermostat.away_mode is not None:
+            entities.append(DaikinOneAwayModeSwitch(data, thermostat))
 
     async_add_entities(entities, True)
 
 
 class DaikinOneAwayModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):
-    def __init__(self, description: SwitchEntityDescription, data: DaikinOneData, thermostat: DaikinThermostat):
+    def __init__(
+        self,
+        data: DaikinOneData,
+        thermostat: DaikinThermostat,
+        description: SwitchEntityDescription = AWAY_MODE_DESCRIPTION,
+    ) -> None:
         super().__init__(data, thermostat)
 
         self.entity_description = description
@@ -48,14 +52,16 @@ class DaikinOneAwayModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):
             case _:
                 raise ValueError("unexpected entity uid schema version")
 
+        self.update_entity_attributes()
+
     @property
     def device_name(self) -> str:
         return f"{self._device.name} Thermostat"
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         await self._set_away(True)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         await self._set_away(False)
 
     async def _set_away(self, away: bool) -> None:
