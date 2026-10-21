@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
+from custom_components.daikinone.client.mapping import determine_active_heat_source
 from custom_components.daikinone.client.models import (
+    DaikinActiveHeatSource,
     DaikinEEVCoil,
     DaikinIndoorUnit,
     DaikinOutdoorUnit,
@@ -66,6 +68,24 @@ AIR_HANDLER_DATA: dict[str, Any] = {
     "ctIndoorPower": 100,
 }
 
+FURNACE_DATA: dict[str, Any] = {
+    "ctIFCUnitType": 1,
+    "ctIFCModelNoCharacter1_15": "IFC-MODEL       ",
+    "ctIFCSerialNoCharacter1_15": "IFC-SERIAL      ",
+    "ctIFCControlSoftwareVersion": "1.0.0           ",
+    "ctIFCOperatingHeatCoolMode": "heat            ",
+    "ctIFCIndoorBlowerAirflow": 450,
+    "ctIFCFanRequestedDemandPercent": 50,
+    "ctIFCCurrentFanActualStatus": 48,
+    "ctIFCHeatRequestedDemandPercent": 100,
+    "ctIFCCurrentHeatActualStatus": 70,
+    "ctIFCCoolRequestedDemandPercent": 0,
+    "ctIFCCurrentCoolActualStatus": 0,
+    "ctIFCHumRequestedDemandPercent": 0,
+    "ctIFCDehumRequestedDemandPercent": 0,
+    "ctIndoorPower": 150,
+}
+
 OUTDOOR_UNIT_DATA: dict[str, Any] = {
     "ctOutdoorUnitType": 1,
     "ctOutdoorModelNoCharacter1_15": "OD-MODEL        ",
@@ -74,6 +94,7 @@ OUTDOOR_UNIT_DATA: dict[str, Any] = {
     "ctOutdoorInverterSoftwareVersion": "1.5.0           ",
     "ctOutdoorCompressorRunTime": 1000,
     "ctOutdoorMode": "cool            ",
+    "ctOutdoorOperationMode": 9,
     "ctTargetCompressorspeed": 50,
     "ctCurrentCompressorRPS": 48,
     "ctTargetODFanRPM": 80,
@@ -524,3 +545,396 @@ class TestOneCleanFan:
     async def test_missing_key_maps_to_none(self, daikin_client: DaikinOne) -> None:
         thermostat = await self._thermostat(daikin_client, _make_device())
         assert thermostat.one_clean_fan_active is None
+
+
+class TestOutdoorOperationModeMapping:
+    async def test_operation_mode_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device({**OUTDOOR_UNIT_DATA, "ctOutdoorOperationMode": 9})
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        unit = next(
+            e
+            for e in daikin_client.get_thermostats()["device123"].equipment.values()
+            if isinstance(e, DaikinOutdoorUnit)
+        )
+        assert unit.operation_mode == 9
+
+    async def test_operation_mode_sentinel_becomes_none(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device({**OUTDOOR_UNIT_DATA, "ctOutdoorOperationMode": 255})
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        unit = next(
+            e
+            for e in daikin_client.get_thermostats()["device123"].equipment.values()
+            if isinstance(e, DaikinOutdoorUnit)
+        )
+        assert unit.operation_mode is None
+
+
+class TestDetermineActiveHeatSource:
+    async def test_off_mode(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.OFF.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.IDLE.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.OFF
+        assert fuel is None
+
+    async def test_idle_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.IDLE.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.IDLE
+        assert fuel is None
+
+    async def test_cooling_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.COOL.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.COOLING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.COOLING
+        assert fuel == "electric"
+
+    async def test_drying_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.COOL.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.DRYING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.DRYING
+        assert fuel == "electric"
+
+    async def test_circulating_air_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.CIRCULATING_AIR.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.FAN_ONLY
+        assert fuel is None
+
+    async def test_defrost_cycle_priority(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "defrost",
+            "ctOutdoorHeatRequestedDemand": 100,
+            "ctCurrentCompressorRPS": 48,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 70,  # tempering heat active
+            "ctIFCIndoorBlowerAirflow": 450,
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.DEFROST
+        assert fuel == "electric"
+
+    async def test_emergency_heat_with_gas_furnace(self, daikin_client: DaikinOne) -> None:
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 70,
+            "ctIFCIndoorBlowerAirflow": 450,
+        }
+        device_data = _make_device(OUTDOOR_UNIT_DATA, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.AUX_HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.EMERGENCY_HEATING
+        assert fuel == "gas"
+
+    async def test_emergency_heat_with_air_handler(self, daikin_client: DaikinOne) -> None:
+        ah = {
+            **AIR_HANDLER_DATA,
+            "ctAHHeatCurrentDemandStatus": 98,
+            "ctAHCurrentIndoorAirflow": 400,
+        }
+        device_data = _make_device(OUTDOOR_UNIT_DATA, ah)
+        device_data["data"]["mode"] = DaikinThermostatMode.AUX_HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.EMERGENCY_HEATING
+        assert fuel == "electric"
+
+    async def test_furnace_firing_overrides_hp_mode_12_deceleration(self, daikin_client: DaikinOne) -> None:
+        """Physical overlap resolution: when furnace flame is proven, it immediately overrides
+        the heat pump compressor ramp-down deceleration (Sequence B)."""
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heat",
+            "ctOutdoorOperationMode": 12,  # Mode 12 deceleration
+            "ctCurrentCompressorRPS": 37,  # Still spinning down
+            "ctOutdoorHeatRequestedDemand": 0,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 70,  # 35% burner active
+            "ctIFCIndoorBlowerAirflow": 200,
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.GAS_HEATING
+        assert fuel == "gas"
+
+    async def test_furnace_firing_overrides_hp_decel_mode_string(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "decel",
+            "ctCurrentCompressorRPS": 25,
+            "ctOutdoorHeatRequestedDemand": 0,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 70,
+            "ctIFCIndoorBlowerAirflow": 200,
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.GAS_HEATING
+        assert fuel == "gas"
+
+    async def test_heat_pump_steady_state_heating(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heat",
+            "ctOutdoorOperationMode": 9,
+            "ctCurrentCompressorRPS": 48,
+            "ctOutdoorHeatRequestedDemand": 80,
+            "ctOutdoorHeatMaxRPS": 100,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 0,
+            "ctIFCIndoorBlowerAirflow": 476,
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.HEAT_PUMP_HEATING
+        assert fuel == "electric"
+
+    async def test_all_electric_hp_supplemental_electric_heat(self, daikin_client: DaikinOne) -> None:
+        """When HP compressor and auxiliary electric strips run simultaneously on an all-electric
+        system, report heat_pump_heating to match physical wall unit (Decision 2)."""
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heat",
+            "ctOutdoorOperationMode": 9,
+            "ctCurrentCompressorRPS": 48,
+            "ctOutdoorHeatRequestedDemand": 100,
+            "ctOutdoorHeatMaxRPS": 100,
+        }
+        ah = {
+            **AIR_HANDLER_DATA,
+            "ctAHHeatCurrentDemandStatus": 98,  # Electric heat strips actively firing
+            "ctAHCurrentIndoorAirflow": 476,
+        }
+        device_data = _make_device(od, ah)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.HEAT_PUMP_HEATING
+        assert fuel == "electric"
+
+    async def test_all_electric_electric_heat_alone(self, daikin_client: DaikinOne) -> None:
+        """When compressor is idle and auxiliary electric strips run alone, report electric_heating."""
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heat",
+            "ctCurrentCompressorRPS": 0,
+            "ctOutdoorHeatRequestedDemand": 0,
+        }
+        ah = {
+            **AIR_HANDLER_DATA,
+            "ctAHHeatCurrentDemandStatus": 98,
+            "ctAHCurrentIndoorAirflow": 400,
+        }
+        device_data = _make_device(od, ah)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.ELECTRIC_HEATING
+        assert fuel == "electric"
+
+    async def test_heating_startup_preheat_delay(self, daikin_client: DaikinOne) -> None:
+        """During startup soft-start / coil pre-heat delay before blower runs (Sequence A),
+        report heating_startup."""
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heating startup",
+            "ctCurrentCompressorRPS": 24,
+            "ctOutdoorHeatRequestedDemand": 100,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 0,
+            "ctIFCIndoorBlowerAirflow": 0,  # Cold blow prevention delay
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.HEATING_STARTUP
+        assert fuel is None
+
+    async def test_straight_ac_with_furnace(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorHeatMaxRPS": 0,  # Condensing unit only (no HP heating)
+            "ctOutdoorHeatRequestedDemand": 0,
+            "ctCurrentCompressorRPS": 0,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 70,
+            "ctIFCIndoorBlowerAirflow": 450,
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.GAS_HEATING
+        assert fuel == "gas"
+
+    async def test_straight_ac_with_furnace_startup(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorHeatMaxRPS": 0,
+            "ctOutdoorHeatRequestedDemand": 0,
+            "ctCurrentCompressorRPS": 0,
+        }
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 0,  # Pre-purge delay
+            "ctIFCIndoorBlowerAirflow": 0,
+        }
+        device_data = _make_device(od, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.HEATING_STARTUP
+        assert fuel is None
+
+    async def test_non_communicating_fallback(self, daikin_client: DaikinOne) -> None:
+        """When sub-equipment loads are not available (conventional system), fall back to
+        generic heating (Decision 3)."""
+        device_data = _make_device()  # NO_EQUIPMENT
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        state, fuel = determine_active_heat_source(thermostat)
+        assert state == DaikinActiveHeatSource.HEATING
+        assert fuel is None
