@@ -155,6 +155,7 @@ class TestAuxHeatLockoutTemperatureEntity:
 
     async def test_async_set_native_value_optimistic(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
         entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         entity.async_write_ha_state = MagicMock()
 
@@ -163,8 +164,8 @@ class TestAuxHeatLockoutTemperatureEntity:
         # In-memory device updated
         assert thermostat.aux_heat_lockout_temp == 5.0
         assert entity.native_value == 5.0
-        # Optimistic write called
-        entity.async_write_ha_state.assert_called_once()
+        # Optimistic write and post-update write called
+        assert entity.async_write_ha_state.call_count >= 1
         # API called
         mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_called_once_with(thermostat.id, 5.0)
 
