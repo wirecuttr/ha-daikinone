@@ -1,4 +1,4 @@
-"""Tests for Daikin One number platform (aux heat lockout temperature)."""
+"""Tests for Daikin One number platform (dual fuel balance point)."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -21,8 +21,8 @@ from custom_components.daikinone.client.models import (
 )
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.number import (
-    AUX_HEAT_LOCKOUT_TEMP_DESCRIPTION,
-    DaikinOneAuxHeatLockoutTemperatureNumber,
+    DUAL_FUEL_BALANCE_POINT_DESCRIPTION,
+    DaikinOneDualFuelBalancePointNumber,
     async_setup_entry,
 )
 from custom_components.daikinone.utils import Temperature
@@ -96,16 +96,16 @@ class TestNumberPlatformSetup:
 
         assert len(added_entities) == 1
         entity = added_entities[0]
-        assert isinstance(entity, DaikinOneAuxHeatLockoutTemperatureNumber)
-        assert entity.entity_description.key == "aux_heat_lockout_temperature"
-        assert entity.entity_description.name == "Aux heat lockout temperature"
+        assert isinstance(entity, DaikinOneDualFuelBalancePointNumber)
+        assert entity.entity_description.key == "dual_fuel_balance_point"
+        assert entity.entity_description.name == "Dual fuel balance point"
         assert entity.entity_description.icon == "mdi:thermometer"
         assert entity.entity_description.device_class == NumberDeviceClass.TEMPERATURE
         assert entity.entity_description.native_unit_of_measurement == UnitOfTemperature.CELSIUS
         assert entity.entity_description.native_step == 0.5
         assert entity.entity_description.entity_category == EntityCategory.CONFIG
         assert entity.entity_description.has_entity_name is True
-        assert entity.unique_id == "device123-aux_heat_lockout_temperature"
+        assert entity.unique_id == "device123-dual_fuel_balance_point"
         assert entity.native_value == 4.5
 
     async def test_setup_entry_skips_when_aux_heat_lockout_temp_none(self, mock_data: DaikinOneData) -> None:
@@ -128,32 +128,32 @@ class TestNumberUniqueId:
     def test_unique_id_schema_v0(self, mock_data: DaikinOneData) -> None:
         mock_data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY] = 0
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat, AUX_HEAT_LOCKOUT_TEMP_DESCRIPTION)
-        assert entity.unique_id == "device123-Aux heat lockout temperature"
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat, DUAL_FUEL_BALANCE_POINT_DESCRIPTION)
+        assert entity.unique_id == "device123-Dual fuel balance point"
 
     def test_unique_id_schema_v1(self, mock_data: DaikinOneData) -> None:
         mock_data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY] = 1
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat, AUX_HEAT_LOCKOUT_TEMP_DESCRIPTION)
-        assert entity.unique_id == "device123-aux_heat_lockout_temperature"
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat, DUAL_FUEL_BALANCE_POINT_DESCRIPTION)
+        assert entity.unique_id == "device123-dual_fuel_balance_point"
 
     def test_unique_id_schema_invalid(self, mock_data: DaikinOneData) -> None:
         mock_data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY] = 99
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
         with pytest.raises(ValueError, match="unexpected entity uid schema version"):
-            DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat, AUX_HEAT_LOCKOUT_TEMP_DESCRIPTION)
+            DaikinOneDualFuelBalancePointNumber(mock_data, thermostat, DUAL_FUEL_BALANCE_POINT_DESCRIPTION)
 
 
 class TestAuxHeatLockoutTemperatureEntity:
     def test_native_value_returns_float(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         assert entity.native_value == 4.5
         assert isinstance(entity.native_value, float)
 
     async def test_async_set_native_value_optimistic(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         entity.async_write_ha_state = MagicMock()
 
         await entity.async_set_native_value(5.0)
@@ -168,32 +168,32 @@ class TestAuxHeatLockoutTemperatureEntity:
 
     def test_dynamic_bounds_within_standard_range(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         assert entity.native_min_value == -23.0
         assert entity.native_max_value == 22.0
 
     def test_dynamic_bounds_expansion_below_min(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=-30.0)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         assert entity.native_min_value == -30.0
         assert entity.native_max_value == 22.0
 
     def test_dynamic_bounds_expansion_above_max(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=25.5)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         assert entity.native_min_value == -23.0
         assert entity.native_max_value == 25.5
 
     def test_dynamic_bounds_when_temp_is_none(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=None)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         assert entity.native_min_value == -23.0
         assert entity.native_max_value == 22.0
 
     async def test_async_get_device(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
         mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
 
         device = await entity.async_get_device()
         assert device == thermostat
@@ -201,5 +201,5 @@ class TestAuxHeatLockoutTemperatureEntity:
 
     def test_device_name(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(name="Living Room")
-        entity = DaikinOneAuxHeatLockoutTemperatureNumber(mock_data, thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
         assert entity.device_name == "Living Room Thermostat"

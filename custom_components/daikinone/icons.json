@@ -37,7 +37,7 @@
       }
     },
     "number": {
-      "aux_heat_lockout_temperature": {
+      "dual_fuel_balance_point": {
         "default": "mdi:thermometer"
       }
     }

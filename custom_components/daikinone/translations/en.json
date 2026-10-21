@@ -128,8 +128,8 @@
       }
     },
     "number": {
-      "aux_heat_lockout_temperature": {
-        "name": "Aux heat lockout temperature"
+      "dual_fuel_balance_point": {
+        "name": "Dual fuel balance point"
       }
     }
   }

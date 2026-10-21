@@ -19,9 +19,9 @@ from custom_components.daikinone.entity import DaikinOneEntity
 
 log = logging.getLogger(__name__)
 
-AUX_HEAT_LOCKOUT_TEMP_DESCRIPTION = NumberEntityDescription(
-    key="aux_heat_lockout_temperature",
-    name="Aux heat lockout temperature",
+DUAL_FUEL_BALANCE_POINT_DESCRIPTION = NumberEntityDescription(
+    key="dual_fuel_balance_point",
+    name="Dual fuel balance point",
     icon="mdi:thermometer",
     device_class=NumberDeviceClass.TEMPERATURE,
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
@@ -45,23 +45,23 @@ async def async_setup_entry(
     entities: list[NumberEntity] = []
     for thermostat in thermostats:
         if thermostat.aux_heat_lockout_temp is not None:
-            entities.append(DaikinOneAuxHeatLockoutTemperatureNumber(data, thermostat))
+            entities.append(DaikinOneDualFuelBalancePointNumber(data, thermostat))
 
     async_add_entities(entities, True)
 
 
-class DaikinOneAuxHeatLockoutTemperatureNumber(DaikinOneEntity[DaikinThermostat], NumberEntity):
-    """Number entity to configure the auxiliary heat lockout balance point temperature."""
+class DaikinOneDualFuelBalancePointNumber(DaikinOneEntity[DaikinThermostat], NumberEntity):
+    """Number entity to configure the dual-fuel balance point temperature."""
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
     _attr_has_entity_name = True
-    _attr_translation_key = "aux_heat_lockout_temperature"
+    _attr_translation_key = "dual_fuel_balance_point"
 
     def __init__(
         self,
         data: DaikinOneData,
         thermostat: DaikinThermostat,
-        description: NumberEntityDescription = AUX_HEAT_LOCKOUT_TEMP_DESCRIPTION,
+        description: NumberEntityDescription = DUAL_FUEL_BALANCE_POINT_DESCRIPTION,
     ) -> None:
         super().__init__(data, thermostat)
         self.entity_description = description
