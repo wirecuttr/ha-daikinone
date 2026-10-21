@@ -600,7 +600,6 @@ class TestEnumSanitization:
         assert DaikinOneAirQualitySensorSummaryLevel(wire_value) is expected_enum
 
 
-
 class TestOneCleanFan:
     """oneCleanFanActive maps to the thermostat's One Clean state; payloads that
     don't report the feature (e.g. P1/P2 mini-splits) map to None so the switch
