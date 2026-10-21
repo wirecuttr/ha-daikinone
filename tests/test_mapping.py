@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.mapping import determine_active_heat_source
+from custom_components.daikinone.client.mapping import determine_operating_state
 from custom_components.daikinone.client.models import (
-    DaikinActiveHeatSource,
     DaikinEEVCoil,
     DaikinIndoorUnit,
+    DaikinOperatingState,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
@@ -577,7 +577,7 @@ class TestOutdoorOperationModeMapping:
         assert unit.operation_mode is None
 
 
-class TestDetermineActiveHeatSource:
+class TestDetermineOperatingState:
     async def test_off_mode(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
         device_data["data"]["mode"] = DaikinThermostatMode.OFF.value
@@ -588,8 +588,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.OFF
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.OFF
         assert fuel is None
 
     async def test_idle_status(self, daikin_client: DaikinOne) -> None:
@@ -602,8 +602,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.IDLE
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.IDLE
         assert fuel is None
 
     async def test_cooling_status(self, daikin_client: DaikinOne) -> None:
@@ -616,8 +616,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.COOLING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.COOLING
         assert fuel == "electric"
 
     async def test_drying_status(self, daikin_client: DaikinOne) -> None:
@@ -630,8 +630,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.DRYING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.DRYING
         assert fuel == "electric"
 
     async def test_circulating_air_status(self, daikin_client: DaikinOne) -> None:
@@ -644,8 +644,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.FAN_ONLY
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.FAN_ONLY
         assert fuel is None
 
     async def test_defrost_cycle_priority(self, daikin_client: DaikinOne) -> None:
@@ -669,8 +669,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.DEFROST
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.DEFROST
         assert fuel == "electric"
 
     async def test_emergency_heat_with_gas_furnace(self, daikin_client: DaikinOne) -> None:
@@ -688,8 +688,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.EMERGENCY_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.EMERGENCY_HEATING
         assert fuel == "gas"
 
     async def test_emergency_heat_with_air_handler(self, daikin_client: DaikinOne) -> None:
@@ -707,8 +707,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.EMERGENCY_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.EMERGENCY_HEATING
         assert fuel == "electric"
 
     async def test_furnace_firing_overrides_hp_mode_12_deceleration(self, daikin_client: DaikinOne) -> None:
@@ -735,8 +735,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.GAS_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.GAS_HEATING
         assert fuel == "gas"
 
     async def test_furnace_firing_overrides_hp_decel_mode_string(self, daikin_client: DaikinOne) -> None:
@@ -760,8 +760,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.GAS_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.GAS_HEATING
         assert fuel == "gas"
 
     async def test_heat_pump_steady_state_heating(self, daikin_client: DaikinOne) -> None:
@@ -787,8 +787,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.HEAT_PUMP_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.HEAT_PUMP_HEATING
         assert fuel == "electric"
 
     async def test_all_electric_hp_supplemental_electric_heat(self, daikin_client: DaikinOne) -> None:
@@ -816,8 +816,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.HEAT_PUMP_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.HEAT_PUMP_HEATING
         assert fuel == "electric"
 
     async def test_all_electric_electric_heat_alone(self, daikin_client: DaikinOne) -> None:
@@ -842,8 +842,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.ELECTRIC_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.ELECTRIC_HEATING
         assert fuel == "electric"
 
     async def test_heating_startup_preheat_delay(self, daikin_client: DaikinOne) -> None:
@@ -869,8 +869,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.HEATING_STARTUP
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.HEATING_STARTUP
         assert fuel is None
 
     async def test_straight_ac_with_furnace(self, daikin_client: DaikinOne) -> None:
@@ -894,8 +894,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.GAS_HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.GAS_HEATING
         assert fuel == "gas"
 
     async def test_straight_ac_with_furnace_startup(self, daikin_client: DaikinOne) -> None:
@@ -919,8 +919,8 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.HEATING_STARTUP
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.HEATING_STARTUP
         assert fuel is None
 
     async def test_non_communicating_fallback(self, daikin_client: DaikinOne) -> None:
@@ -935,6 +935,6 @@ class TestDetermineActiveHeatSource:
             await daikin_client.update()
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        state, fuel = determine_active_heat_source(thermostat)
-        assert state == DaikinActiveHeatSource.HEATING
+        state, fuel = determine_operating_state(thermostat)
+        assert state == DaikinOperatingState.HEATING
         assert fuel is None

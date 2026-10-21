@@ -33,8 +33,8 @@
       }
     },
     "sensor": {
-      "active_heat_source": {
-        "name": "Active heat source",
+      "operating_state": {
+        "name": "Operating state",
         "state": {
           "idle": "Idle",
           "heating_startup": "Heating (starting up)",

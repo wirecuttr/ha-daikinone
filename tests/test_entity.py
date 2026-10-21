@@ -9,8 +9,8 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescr
 from custom_components.daikinone import DaikinOneData
 from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
-    DaikinActiveHeatSource,
     DaikinIndoorUnit,
+    DaikinOperatingState,
     DaikinThermostatMode,
     DaikinThermostatStatus,
     DaikinUserCredentials,
@@ -21,8 +21,8 @@ from custom_components.daikinone.select import (
     DaikinOneDualFuelPrioritySelect,
 )
 from custom_components.daikinone.sensor import (
-    DaikinOneActiveHeatSourceSensor,
     DaikinOneEquipmentSensor,
+    DaikinOneOperatingStateSensor,
     DaikinOneThermostatSensor,
 )
 from tests.test_mapping import AIR_HANDLER_DATA, FURNACE_DATA, OUTDOOR_UNIT_DATA, _make_device
@@ -158,18 +158,18 @@ class TestDualFuelPrioritySelect:
                 await select.async_select_option("Invalid")
 
 
-class TestActiveHeatSourceSensor:
+class TestOperatingStateSensor:
     def _create_description(self) -> SensorEntityDescription:
         return SensorEntityDescription(
-            key="active_heat_source",
-            name="Active Heat Source",
+            key="operating_state",
+            name="Operating state",
             has_entity_name=True,
             device_class=SensorDeviceClass.ENUM,
-            options=[s.value for s in DaikinActiveHeatSource],
-            translation_key="active_heat_source",
+            options=[s.value for s in DaikinOperatingState],
+            translation_key="operating_state",
         )
 
-    async def test_active_heat_source_sensor_schema_v0(self, daikin_client: DaikinOne) -> None:
+    async def test_operating_state_sensor_schema_v0(self, daikin_client: DaikinOne) -> None:
         entry = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 0})
         v0_data = DaikinOneData(_hass=None, entry=entry, daikin=daikin_client)  # type: ignore[arg-type]
 
@@ -177,24 +177,24 @@ class TestActiveHeatSourceSensor:
             await _refresh(daikin_client, mock_req, _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA))
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        sensor = DaikinOneActiveHeatSourceSensor(
+        sensor = DaikinOneOperatingStateSensor(
             description=self._create_description(),
             data=v0_data,
             device=thermostat,
         )
-        assert sensor.unique_id == "device123-Active Heat Source"
+        assert sensor.unique_id == "device123-Operating state"
 
-    async def test_active_heat_source_sensor_schema_v1(self, daikin_client: DaikinOne, data: DaikinOneData) -> None:
+    async def test_operating_state_sensor_schema_v1(self, daikin_client: DaikinOne, data: DaikinOneData) -> None:
         with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
             await _refresh(daikin_client, mock_req, _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA))
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        sensor = DaikinOneActiveHeatSourceSensor(
+        sensor = DaikinOneOperatingStateSensor(
             description=self._create_description(),
             data=data,
             device=thermostat,
         )
-        assert sensor.unique_id == "device123-active_heat_source"
+        assert sensor.unique_id == "device123-operating_state"
         assert sensor.device_class == SensorDeviceClass.ENUM
         assert sensor.options is not None
         assert len(sensor.options) == 12
@@ -205,7 +205,7 @@ class TestActiveHeatSourceSensor:
         assert "drying" in sensor.options
         assert "defrost" in sensor.options
 
-    async def test_active_heat_source_sensor_state_and_fuel_type(
+    async def test_operating_state_sensor_state_and_fuel_type(
         self, daikin_client: DaikinOne, data: DaikinOneData
     ) -> None:
         device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
@@ -217,7 +217,7 @@ class TestActiveHeatSourceSensor:
             await _refresh(daikin_client, mock_req, device_data)
 
         thermostat = daikin_client.get_thermostats()["device123"]
-        sensor = DaikinOneActiveHeatSourceSensor(
+        sensor = DaikinOneOperatingStateSensor(
             description=self._create_description(),
             data=data,
             device=thermostat,

@@ -18,7 +18,7 @@
       }
     },
     "sensor": {
-      "active_heat_source": {
+      "operating_state": {
         "default": "mdi:thermostat",
         "state": {
           "gas_heating": "mdi:fire",

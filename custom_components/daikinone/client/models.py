@@ -169,7 +169,7 @@ class DaikinThermostatStatus(Enum):
         return cls.UNKNOWN
 
 
-class DaikinActiveHeatSource(StrEnum):
+class DaikinOperatingState(StrEnum):
     IDLE = "idle"
     HEATING_STARTUP = "heating_startup"
     HEATING = "heating"
