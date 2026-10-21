@@ -221,4 +221,5 @@ class DaikinThermostat(DaikinDevice):
     # One Clean: 3-hour full-speed fan cycle to clean the air; None when the
     # payload does not report the feature
     one_clean_fan_active: bool | None
+    dual_fuel_furnace_lockout_enable: bool | None
     equipment: dict[str, DaikinEquipment]
