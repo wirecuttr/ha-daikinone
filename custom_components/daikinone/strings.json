@@ -20,8 +20,7 @@
         "state_attributes": {
           "preset_mode": {
             "state": {
-              "away": "Away",
-              "emergency_heat": "Emergency heat"
+              "away": "Away"
             }
           },
           "fan_mode": {
@@ -54,6 +53,54 @@
           "defrost": "Heat pump defrosting",
           "fan_only": "Circulating air",
           "off": "Off"
+        }
+      },
+      "outdoor_air_quality_summary": {
+        "name": "Outdoor air quality",
+        "state": {
+          "good": "Good",
+          "moderate": "Moderate",
+          "unhealthy_sensitive": "Unhealthy for sensitive groups",
+          "unhealthy": "Unhealthy",
+          "very_unhealthy": "Very unhealthy",
+          "hazardous": "Hazardous",
+          "unknown": "Unknown"
+        }
+      },
+      "indoor_air_quality_summary": {
+        "name": "Indoor air quality",
+        "state": {
+          "good": "Good",
+          "moderate": "Moderate",
+          "unhealthy_sensitive": "Unhealthy for sensitive groups",
+          "unhealthy": "Unhealthy",
+          "very_unhealthy": "Very unhealthy",
+          "hazardous": "Hazardous",
+          "unknown": "Unknown"
+        }
+      },
+      "indoor_air_quality_particles_summary": {
+        "name": "Indoor air quality particles",
+        "state": {
+          "good": "Good",
+          "moderate": "Moderate",
+          "unhealthy_sensitive": "Unhealthy for sensitive groups",
+          "unhealthy": "Unhealthy",
+          "very_unhealthy": "Very unhealthy",
+          "hazardous": "Hazardous",
+          "unknown": "Unknown"
+        }
+      },
+      "indoor_air_quality_voc_summary": {
+        "name": "Indoor air quality VOC",
+        "state": {
+          "good": "Good",
+          "moderate": "Moderate",
+          "unhealthy_sensitive": "Unhealthy for sensitive groups",
+          "unhealthy": "Unhealthy",
+          "very_unhealthy": "Very unhealthy",
+          "hazardous": "Hazardous",
+          "unknown": "Unknown"
         }
       }
     }

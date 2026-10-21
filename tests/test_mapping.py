@@ -9,6 +9,7 @@ from custom_components.daikinone.client.wire import DaikinDeviceDataResponse
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinIndoorUnit,
+    DaikinOneAirQualitySensorSummaryLevel,
     DaikinOperatingState,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
@@ -516,6 +517,88 @@ class TestEnumSanitization:
             if isinstance(e, DaikinOutdoorUnit)
         )
         assert unit.crank_case_heater is DaikinOutdoorUnitHeaterStatus.UNKNOWN
+
+    @pytest.mark.parametrize(
+        ("wire_value", "expected_enum"),
+        [
+            (0, DaikinOneAirQualitySensorSummaryLevel.GOOD),
+            (1, DaikinOneAirQualitySensorSummaryLevel.MODERATE),
+            (2, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY_SENSITIVE),
+            (3, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY),
+            (4, DaikinOneAirQualitySensorSummaryLevel.VERY_UNHEALTHY),
+            (5, DaikinOneAirQualitySensorSummaryLevel.HAZARDOUS),
+        ],
+    )
+    async def test_outdoor_air_quality_epa_levels_mapped(
+        self,
+        daikin_client: DaikinOne,
+        wire_value: int,
+        expected_enum: DaikinOneAirQualitySensorSummaryLevel,
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "aqOutdoorAvailable": True,
+                "aqOutdoorValue": 50,
+                "aqOutdoorLevel": wire_value,
+                "aqOutdoorParticles": 10,
+                "aqOutdoorOzone": 20,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.air_quality_outdoor is not None
+        assert thermostat.air_quality_outdoor.aqi_summary_level is expected_enum
+
+    @pytest.mark.parametrize(
+        "wire_value",
+        [255, -1, 6],
+    )
+    async def test_outdoor_air_quality_unexpected_values_fallback_to_unknown(
+        self, daikin_client: DaikinOne, wire_value: int
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "aqOutdoorAvailable": True,
+                "aqOutdoorValue": 50,
+                "aqOutdoorLevel": wire_value,
+                "aqOutdoorParticles": 10,
+                "aqOutdoorOzone": 20,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.air_quality_outdoor is not None
+        assert thermostat.air_quality_outdoor.aqi_summary_level is DaikinOneAirQualitySensorSummaryLevel.UNKNOWN
+
+    @pytest.mark.parametrize(
+        ("wire_value", "expected_enum"),
+        [
+            (0, DaikinOneAirQualitySensorSummaryLevel.GOOD),
+            (1, DaikinOneAirQualitySensorSummaryLevel.MODERATE),
+            (2, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY_SENSITIVE),
+            (3, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY),
+            (4, DaikinOneAirQualitySensorSummaryLevel.VERY_UNHEALTHY),
+            (5, DaikinOneAirQualitySensorSummaryLevel.HAZARDOUS),
+            (255, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+            (-1, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+            (6, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+        ],
+    )
+    def test_air_quality_summary_level_enum_direct(
+        self, wire_value: int, expected_enum: DaikinOneAirQualitySensorSummaryLevel
+    ) -> None:
+        assert DaikinOneAirQualitySensorSummaryLevel(wire_value) is expected_enum
+
 
 
 class TestOneCleanFan:
