@@ -120,7 +120,6 @@ class TestEntityAvailability:
         assert sensor.native_value == 45
 
 
-<<<<<<< HEAD
 class TestDualFuelPrioritySelect:
     async def test_select_state_and_options(self, daikin_client: DaikinOne, data: DaikinOneData) -> None:
         device_data = _make_device()
