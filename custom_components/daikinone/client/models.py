@@ -101,11 +101,17 @@ class DaikinOutdoorUnit(DaikinEquipment):
 
 
 class DaikinOneAirQualitySensorSummaryLevel(Enum):
+    UNKNOWN = 255
     GOOD = 0
     MODERATE = 1
-    UNHEALTHY = 2
-    # The app shows 3 as "Unhealthy" but with a red color instead of orange, so we will call it "Hazardous"
-    HAZARDOUS = 3
+    UNHEALTHY_SENSITIVE = 2
+    UNHEALTHY = 3
+    VERY_UNHEALTHY = 4
+    HAZARDOUS = 5
+
+    @classmethod
+    def _missing_(cls, value: object) -> "DaikinOneAirQualitySensorSummaryLevel":
+        return cls.UNKNOWN
 
 
 @dataclass

@@ -7,6 +7,7 @@ from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinIndoorUnit,
+    DaikinOneAirQualitySensorSummaryLevel,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
@@ -216,9 +217,7 @@ class TestMappingPreservesValidFields:
         thermostat = daikin_client.get_thermostats()["device123"]
         assert thermostat.indoor_humidity is None
 
-    async def test_thermostat_still_mapped_when_equipment_fields_garbage(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_thermostat_still_mapped_when_equipment_fields_garbage(self, daikin_client: DaikinOne) -> None:
         ah = {**AIR_HANDLER_DATA, "ctAHFanRequestedDemand": 255, "ctIndoorPower": 65535}
         device_data = _make_device(ah)
 
@@ -238,9 +237,7 @@ class TestEquipmentSkippedOnInvalidIdentity:
     eid is never polluted with fallback values, so entities go temporarily unavailable
     during garbage refreshes rather than being orphaned and re-registered under a new id."""
 
-    async def test_air_handler_skipped_when_serial_invalid(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_air_handler_skipped_when_serial_invalid(self, daikin_client: DaikinOne) -> None:
         ah = {**AIR_HANDLER_DATA, "ctAHSerialNoCharacter1_15": "he\ufffdlo"}
         device_data = _make_device(ah)
 
@@ -302,9 +299,7 @@ class TestEquipmentUnitTypeAbsent:
     """P1/P2 mini-split payloads omit the ``ct*UnitType`` keys entirely; the mapping
     must treat that as 'equipment not present' rather than KeyError-ing on setup."""
 
-    async def test_no_equipment_mapped_when_unit_type_keys_missing(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_no_equipment_mapped_when_unit_type_keys_missing(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device()
         for key in ("ctAHUnitType", "ctIFCUnitType", "ctOutdoorUnitType", "ctCoilUnitType"):
             del device_data["data"][key]
@@ -316,9 +311,7 @@ class TestEquipmentUnitTypeAbsent:
         thermostat = daikin_client.get_thermostats()["device123"]
         assert thermostat.equipment == {}
 
-    async def test_partial_unit_type_keys_gate_only_their_own_equipment(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_partial_unit_type_keys_gate_only_their_own_equipment(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device(OUTDOOR_UNIT_DATA)
         del device_data["data"]["ctAHUnitType"]
         del device_data["data"]["ctIFCUnitType"]
@@ -339,9 +332,7 @@ class TestThermostatCapabilitiesAbsent:
     must treat missing keys as 'capability not advertised' rather than KeyError-ing
     on setup."""
 
-    async def test_no_capabilities_when_cap_keys_missing(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_no_capabilities_when_cap_keys_missing(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device()
         for key in ("ctSystemCapHeat", "ctSystemCapCool", "ctSystemCapEmergencyHeat"):
             del device_data["data"][key]
@@ -432,9 +423,7 @@ class TestEnumSanitization:
             mock_req.return_value = [device_data]
             await daikin_client.update()
 
-        assert (
-            daikin_client.get_thermostats()["device123"].fan_mode is DaikinThermostatFanMode.UNKNOWN
-        )
+        assert daikin_client.get_thermostats()["device123"].fan_mode is DaikinThermostatFanMode.UNKNOWN
 
     async def test_thermostat_fan_speed_sentinel_becomes_unknown(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device()
@@ -444,13 +433,9 @@ class TestEnumSanitization:
             mock_req.return_value = [device_data]
             await daikin_client.update()
 
-        assert (
-            daikin_client.get_thermostats()["device123"].fan_speed is DaikinThermostatFanSpeed.UNKNOWN
-        )
+        assert daikin_client.get_thermostats()["device123"].fan_speed is DaikinThermostatFanSpeed.UNKNOWN
 
-    async def test_thermostat_enum_unexpected_value_becomes_unknown(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_thermostat_enum_unexpected_value_becomes_unknown(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device()
         device_data["data"]["mode"] = 99
 
@@ -460,9 +445,7 @@ class TestEnumSanitization:
 
         assert daikin_client.get_thermostats()["device123"].mode is DaikinThermostatMode.UNKNOWN
 
-    async def test_outdoor_reversing_valve_unexpected_value_becomes_unknown(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_outdoor_reversing_valve_unexpected_value_becomes_unknown(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device({**OUTDOOR_UNIT_DATA, "ctReversingValve": 42})
 
         with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
@@ -476,9 +459,7 @@ class TestEnumSanitization:
         )
         assert unit.reversing_valve is DaikinOutdoorUnitReversingValveStatus.UNKNOWN
 
-    async def test_outdoor_heater_unexpected_value_becomes_unknown(
-        self, daikin_client: DaikinOne
-    ) -> None:
+    async def test_outdoor_heater_unexpected_value_becomes_unknown(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device({**OUTDOOR_UNIT_DATA, "ctCrankCaseHeaterOnOff": 42})
 
         with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
@@ -491,3 +472,84 @@ class TestEnumSanitization:
             if isinstance(e, DaikinOutdoorUnit)
         )
         assert unit.crank_case_heater is DaikinOutdoorUnitHeaterStatus.UNKNOWN
+
+    @pytest.mark.parametrize(
+        ("wire_value", "expected_enum"),
+        [
+            (0, DaikinOneAirQualitySensorSummaryLevel.GOOD),
+            (1, DaikinOneAirQualitySensorSummaryLevel.MODERATE),
+            (2, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY_SENSITIVE),
+            (3, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY),
+            (4, DaikinOneAirQualitySensorSummaryLevel.VERY_UNHEALTHY),
+            (5, DaikinOneAirQualitySensorSummaryLevel.HAZARDOUS),
+        ],
+    )
+    async def test_outdoor_air_quality_epa_levels_mapped(
+        self,
+        daikin_client: DaikinOne,
+        wire_value: int,
+        expected_enum: DaikinOneAirQualitySensorSummaryLevel,
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "aqOutdoorAvailable": True,
+                "aqOutdoorValue": 50,
+                "aqOutdoorLevel": wire_value,
+                "aqOutdoorParticles": 10,
+                "aqOutdoorOzone": 20,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.air_quality_outdoor is not None
+        assert thermostat.air_quality_outdoor.aqi_summary_level is expected_enum
+
+    @pytest.mark.parametrize(
+        "wire_value",
+        [255, -1, 6],
+    )
+    async def test_outdoor_air_quality_unexpected_values_fallback_to_unknown(
+        self, daikin_client: DaikinOne, wire_value: int
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "aqOutdoorAvailable": True,
+                "aqOutdoorValue": 50,
+                "aqOutdoorLevel": wire_value,
+                "aqOutdoorParticles": 10,
+                "aqOutdoorOzone": 20,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.air_quality_outdoor is not None
+        assert thermostat.air_quality_outdoor.aqi_summary_level is DaikinOneAirQualitySensorSummaryLevel.UNKNOWN
+
+    @pytest.mark.parametrize(
+        ("wire_value", "expected_enum"),
+        [
+            (0, DaikinOneAirQualitySensorSummaryLevel.GOOD),
+            (1, DaikinOneAirQualitySensorSummaryLevel.MODERATE),
+            (2, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY_SENSITIVE),
+            (3, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY),
+            (4, DaikinOneAirQualitySensorSummaryLevel.VERY_UNHEALTHY),
+            (5, DaikinOneAirQualitySensorSummaryLevel.HAZARDOUS),
+            (255, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+            (-1, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+            (6, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+        ],
+    )
+    def test_air_quality_summary_level_enum_direct(
+        self, wire_value: int, expected_enum: DaikinOneAirQualitySensorSummaryLevel
+    ) -> None:
+        assert DaikinOneAirQualitySensorSummaryLevel(wire_value) is expected_enum
