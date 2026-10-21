@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Daikin One",
+        "description": "Enter your Daikin One account credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "auth_failed": "Authentication failed, please check your credentials and try again. Check the logs for more info."
+    }
+  },
+  "entity": {
+    "climate": {
+      "daikinone_thermostat": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "emergency_heat": "Emergency heat"
+            }
+          },
+          "fan_mode": {
+            "state": {
+              "always_on": "Always on",
+              "schedule": "Scheduled"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "active_heat_source": {
+        "name": "Active heat source",
+        "state": {
+          "idle": "Idle",
+          "heating_startup": "Heating (starting up)",
+          "heating": "Heating",
+          "heat_pump_heating": "Heat pump heating active",
+          "gas_heating": "Gas heating active",
+          "electric_heating": "Electric heating active",
+          "emergency_heating": "Emergency heating active",
+          "cooling": "Cooling active",
+          "drying": "Dehumidifying active",
+          "defrost": "Heat pump defrosting",
+          "fan_only": "Circulating air",
+          "off": "Off"
+        }
+      }
+    }
+  }
+}

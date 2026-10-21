@@ -21,7 +21,9 @@ from homeassistant.helpers.typing import StateType
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.entity import DaikinOneEntity
+from custom_components.daikinone.client.mapping import determine_active_heat_source
 from custom_components.daikinone.client.models import (
+    DaikinActiveHeatSource,
     DaikinDevice,
     DaikinEEVCoil,
     DaikinOutdoorUnitReversingValveStatus,
@@ -49,6 +51,18 @@ async def async_setup_entry(
         # thermostat sensors
 
         entities += [
+            DaikinOneActiveHeatSourceSensor(
+                description=SensorEntityDescription(
+                    key="active_heat_source",
+                    name="Active Heat Source",
+                    has_entity_name=True,
+                    device_class=SensorDeviceClass.ENUM,
+                    options=[s.value for s in DaikinActiveHeatSource],
+                    translation_key="active_heat_source",
+                ),
+                data=data,
+                device=thermostat,
+            ),
             DaikinOneThermostatSensor(
                 description=SensorEntityDescription(
                     key="online",
@@ -929,7 +943,8 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
 
         match data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY]:
             case 0:
-                self._attr_unique_id = f"{self._device.id}-{self.name}"
+                name = self.entity_description.name or self.name
+                self._attr_unique_id = f"{self._device.id}-{name}"
             case 1:
                 self._attr_unique_id = f"{self._device.id}-{self.entity_description.key}"
             case _:
@@ -942,6 +957,29 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
         self._attr_native_value = self._attribute(self._device)
 
 
+class DaikinOneActiveHeatSourceSensor(DaikinOneThermostatSensor):
+    """Sensor tracking active heating/cooling source matching wall unit."""
+
+    def __init__(
+        self,
+        description: SensorEntityDescription,
+        data: DaikinOneData,
+        device: DaikinThermostat,
+    ) -> None:
+        super().__init__(
+            description,
+            data,
+            device,
+            attribute=lambda t: determine_active_heat_source(t)[0],
+        )
+        self.update_entity_attributes()
+
+    def update_entity_attributes(self) -> None:
+        state, fuel = determine_active_heat_source(self._device)
+        self._attr_native_value = state
+        self._attr_extra_state_attributes = {"fuel_type": fuel} if fuel is not None else {}
+
+
 class DaikinOneEquipmentSensor[E: DaikinEquipment](DaikinOneSensor[E]):
     def __init__(
         self, description: SensorEntityDescription, data: DaikinOneData, device: E, attribute: Callable[[E], StateType]
@@ -950,7 +988,8 @@ class DaikinOneEquipmentSensor[E: DaikinEquipment](DaikinOneSensor[E]):
 
         match data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY]:
             case 0:
-                self._attr_unique_id = f"{self._device.id}-{self.name}"
+                name = self.entity_description.name or self.name
+                self._attr_unique_id = f"{self._device.id}-{name}"
             case 1:
                 self._attr_unique_id = f"{self._device.thermostat_id}-{self._device.id}-{self.entity_description.key}"
             case _:
