@@ -105,7 +105,7 @@ class TestSelectPlatformSetup:
         speed_entity = fan_speed_entities[0]
         assert speed_entity.entity_description.entity_category == EntityCategory.CONFIG
         assert speed_entity.entity_description.key == "fan_speed"
-        assert speed_entity.entity_description.name == "Fan speed"
+        assert speed_entity.entity_description.name == "Fan circulation speed"
         assert speed_entity.entity_description.translation_key == "fan_speed"
         assert speed_entity.current_option == "Low"
 
