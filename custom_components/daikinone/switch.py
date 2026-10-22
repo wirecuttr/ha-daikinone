@@ -65,6 +65,20 @@ async def async_setup_entry(
                     thermostat=thermostat,
                 )
             )
+        if thermostat.night_mode_enabled is not None:
+            entities.append(
+                DaikinOneNightModeSwitch(
+                    description=SwitchEntityDescription(
+                        key="night_mode",
+                        name="Night mode",
+                        has_entity_name=True,
+                        icon="mdi:weather-night",
+                        translation_key="night_mode",
+                    ),
+                    data=data,
+                    thermostat=thermostat,
+                )
+            )
 
     async_add_entities(entities, True)
 
@@ -216,3 +230,70 @@ class DaikinOneEmergencyHeatSwitch(DaikinOneEntity[DaikinThermostat], SwitchEnti
 
     def update_entity_attributes(self) -> None:
         self._attr_is_on = self._device.mode == DaikinThermostatMode.AUX_HEAT
+
+
+class DaikinOneNightModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):
+    """Switch entity to enable or disable thermostat night mode."""
+
+    _attr_translation_key = "night_mode"
+
+    def __init__(
+        self,
+        description: SwitchEntityDescription,
+        data: DaikinOneData,
+        thermostat: DaikinThermostat,
+    ):
+        super().__init__(data, thermostat)
+        self.entity_description = description
+
+        match data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY]:
+            case 0 | 1:
+                self._attr_unique_id = f"{self._device.id}-{self.entity_description.key}"
+            case _:
+                raise ValueError("unexpected entity uid schema version")
+
+        self.update_entity_attributes()
+
+    @property
+    def device_name(self) -> str:
+        return f"{self._device.name} Thermostat"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if night mode is enabled."""
+        return bool(self._device.night_mode_enabled)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return device state attributes."""
+        attrs: dict[str, Any] = {}
+        if self._device.night_mode_active is not None:
+            attrs["night_mode_active"] = self._device.night_mode_active
+        if self._device.night_mode_light_bar_allowed is not None:
+            attrs["light_bar_allowed"] = self._device.night_mode_light_bar_allowed
+        return attrs
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable night mode on thermostat."""
+        await self._set_night_mode(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable night mode on thermostat."""
+        await self._set_night_mode(False)
+
+    async def _set_night_mode(self, enabled: bool) -> None:
+        def update(t: DaikinThermostat) -> None:
+            t.night_mode_enabled = enabled
+
+        await self.update_state_optimistically(
+            operation=lambda: self._data.daikin.set_thermostat_night_mode(self._device.id, enabled),
+            optimistic_update=update,
+            check=lambda t: t.night_mode_enabled == enabled,
+        )
+
+    async def async_get_device(self) -> DaikinThermostat:
+        return self._data.daikin.get_thermostat(self._device.id)
+
+    def update_entity_attributes(self) -> None:
+        self._attr_is_on = bool(self._device.night_mode_enabled)
+        self._attr_extra_state_attributes = self.extra_state_attributes

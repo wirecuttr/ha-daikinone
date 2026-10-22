@@ -94,6 +94,11 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         fan_circulate_stop=payload.data.get("fanCirculateStop"),
         fan_circulate_duration=fan_circulate_duration,
         aux_heat_lockout_temp=aux_heat_lockout_temp,
+        night_mode_enabled=payload.data.get("nightModeEnabled"),
+        night_mode_active=payload.data.get("nightModeActive"),
+        night_mode_start=payload.data.get("nightModeStart"),
+        night_mode_stop=payload.data.get("nightModeStop"),
+        night_mode_light_bar_allowed=payload.data.get("nightModeLightBarAllowed"),
     )
 
 

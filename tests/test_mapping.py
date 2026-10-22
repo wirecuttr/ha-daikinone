@@ -1175,3 +1175,37 @@ class TestMapThermostatFanCirculation:
         device_data["data"]["fanCirculateDuration"] = None
         thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
         assert thermostat.fan_circulate_duration is None
+
+
+class TestMapThermostatNightMode:
+    """Test mapping of thermostat night mode fields."""
+
+    def test_night_mode_valid_mapping(self) -> None:
+        """Verify valid values for nightModeEnabled, nightModeActive, nightModeStart, nightModeStop, and nightModeLightBarAllowed."""
+        device_data = _make_device()
+        device_data["data"]["nightModeEnabled"] = True
+        device_data["data"]["nightModeActive"] = False
+        device_data["data"]["nightModeStart"] = 88
+        device_data["data"]["nightModeStop"] = 28
+        device_data["data"]["nightModeLightBarAllowed"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.night_mode_enabled is True
+        assert thermostat.night_mode_active is False
+        assert thermostat.night_mode_start == 88
+        assert thermostat.night_mode_stop == 28
+        assert thermostat.night_mode_light_bar_allowed is True
+
+    def test_night_mode_fields_absent(self) -> None:
+        """Verify missing night mode keys map to None."""
+        device_data = _make_device()
+        device_data["data"].pop("nightModeEnabled", None)
+        device_data["data"].pop("nightModeActive", None)
+        device_data["data"].pop("nightModeStart", None)
+        device_data["data"].pop("nightModeStop", None)
+        device_data["data"].pop("nightModeLightBarAllowed", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.night_mode_enabled is None
+        assert thermostat.night_mode_active is None
+        assert thermostat.night_mode_start is None
+        assert thermostat.night_mode_stop is None
+        assert thermostat.night_mode_light_bar_allowed is None

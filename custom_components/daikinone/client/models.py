@@ -264,3 +264,8 @@ class DaikinThermostat(DaikinDevice):
     fan_circulate_stop: int | None = None
     fan_circulate_duration: DaikinThermostatFanCirculateDuration | None = None
     aux_heat_lockout_temp: float | None = None
+    night_mode_enabled: bool | None = None
+    night_mode_active: bool | None = None
+    night_mode_start: int | None = None
+    night_mode_stop: int | None = None
+    night_mode_light_bar_allowed: bool | None = None

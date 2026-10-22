@@ -195,3 +195,27 @@ class DaikinOne:
             method="PUT",
             body={"auxHeatLockoutTemp": temp},
         )
+
+    async def set_thermostat_night_mode(self, thermostat_id: str, enabled: bool) -> None:
+        """Enable or disable thermostat night mode."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"nightModeEnabled": enabled},
+        )
+
+    async def set_thermostat_night_mode_start(self, thermostat_id: str, start: int) -> None:
+        """Set thermostat night mode start time slot (0-95)."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"nightModeStart": start},
+        )
+
+    async def set_thermostat_night_mode_stop(self, thermostat_id: str, stop: int) -> None:
+        """Set thermostat night mode stop time slot (0-95)."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"nightModeStop": stop},
+        )

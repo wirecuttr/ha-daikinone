@@ -245,3 +245,41 @@ class TestUnsupportedDeviceHandling:
                 method="PUT",
                 body={"auxHeatLockoutTemp": 4.5},
             )
+
+    async def test_set_thermostat_night_mode(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_night_mode sends PUT request with nightModeEnabled payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_night_mode("device123", True)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"nightModeEnabled": True},
+            )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_night_mode("device123", False)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"nightModeEnabled": False},
+            )
+
+    async def test_set_thermostat_night_mode_start(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_night_mode_start sends PUT request with nightModeStart payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_night_mode_start("device123", 88)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"nightModeStart": 88},
+            )
+
+    async def test_set_thermostat_night_mode_stop(self, daikin_client: DaikinOne) -> None:
+        """Verify set_thermostat_night_mode_stop sends PUT request with nightModeStop payload."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_night_mode_stop("device123", 28)
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"nightModeStop": 28},
+            )

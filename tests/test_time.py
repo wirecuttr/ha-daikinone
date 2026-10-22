@@ -24,6 +24,8 @@ from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERS
 from custom_components.daikinone.time import (
     DaikinOneFanCirculationStartTime,
     DaikinOneFanCirculationStopTime,
+    DaikinOneNightModeStartTime,
+    DaikinOneNightModeStopTime,
     _slot_to_time,
     _time_to_slot,
     async_setup_entry,
@@ -37,6 +39,8 @@ def _create_mock_thermostat(
     fan_circulate_start: int | None = 32,
     fan_circulate_stop: int | None = 88,
     fan_circulate_duration: DaikinThermostatFanCirculateDuration | None = DaikinThermostatFanCirculateDuration.MIN_15,
+    night_mode_start: int | None = None,
+    night_mode_stop: int | None = None,
 ) -> DaikinThermostat:
     return DaikinThermostat(
         id=thermostat_id,
@@ -70,6 +74,8 @@ def _create_mock_thermostat(
         fan_circulate_start=fan_circulate_start,
         fan_circulate_stop=fan_circulate_stop,
         fan_circulate_duration=fan_circulate_duration,
+        night_mode_start=night_mode_start,
+        night_mode_stop=night_mode_stop,
     )
 
 
@@ -79,6 +85,8 @@ def mock_data() -> DaikinOneData:
     client = MagicMock(spec=DaikinOne)
     client.set_thermostat_fan_circulate_start = AsyncMock()
     client.set_thermostat_fan_circulate_stop = AsyncMock()
+    client.set_thermostat_night_mode_start = AsyncMock()
+    client.set_thermostat_night_mode_stop = AsyncMock()
     client.get_thermostats = MagicMock(return_value={})
     data = DaikinOneData(_hass=None, entry=entry, daikin=client)  # type: ignore[arg-type]
     data.update = AsyncMock()  # type: ignore[method-assign]
@@ -228,3 +236,118 @@ class TestTimeEntities:
         data_inv = DaikinOneData(_hass=None, entry=entry_inv, daikin=mock_data.daikin)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="unexpected entity uid schema version"):
             DaikinOneFanCirculationStartTime(TimeEntityDescription(key="fan_circulation_start"), data_inv, thermostat)
+
+
+class TestNightModeTimePlatformSetup:
+    async def test_setup_entry_creates_night_mode_entities_when_supported(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(
+            fan_circulate_start=None,
+            fan_circulate_stop=None,
+            night_mode_start=88,
+            night_mode_stop=28,
+        )
+        mock_data.daikin.get_thermostats.return_value = {thermostat.id: thermostat}
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
+
+        added_entities = []
+
+        def async_add_entities(entities, update_before_add=False):
+            added_entities.extend(entities)
+
+        hass = SimpleNamespace(data={DOMAIN: mock_data})
+        await async_setup_entry(hass, mock_data.entry, async_add_entities)  # type: ignore[arg-type]
+
+        start_entities = [e for e in added_entities if isinstance(e, DaikinOneNightModeStartTime)]
+        stop_entities = [e for e in added_entities if isinstance(e, DaikinOneNightModeStopTime)]
+        assert len(start_entities) == 1
+        assert len(stop_entities) == 1
+
+        start = start_entities[0]
+        assert start.entity_description.key == "night_mode_start"
+        assert start.entity_description.name == "Night mode start time"
+        assert start.entity_description.icon == "mdi:clock-start"
+        assert start.entity_description.has_entity_name is True
+        assert start.entity_description.entity_category == EntityCategory.CONFIG
+        assert start.entity_description.translation_key == "night_mode_start"
+        assert start.unique_id == "device123-night_mode_start"
+        assert start.native_value == datetime.time(22, 0)
+
+        stop = stop_entities[0]
+        assert stop.entity_description.key == "night_mode_stop"
+        assert stop.entity_description.name == "Night mode stop time"
+        assert stop.entity_description.icon == "mdi:clock-end"
+        assert stop.entity_description.has_entity_name is True
+        assert stop.entity_description.entity_category == EntityCategory.CONFIG
+        assert stop.entity_description.translation_key == "night_mode_stop"
+        assert stop.unique_id == "device123-night_mode_stop"
+        assert stop.native_value == datetime.time(7, 0)
+
+    async def test_setup_entry_omits_night_mode_entities_when_none(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(
+            fan_circulate_start=None,
+            fan_circulate_stop=None,
+            night_mode_start=None,
+            night_mode_stop=None,
+        )
+        mock_data.daikin.get_thermostats.return_value = {thermostat.id: thermostat}
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
+
+        added_entities = []
+
+        def async_add_entities(entities, update_before_add=False):
+            added_entities.extend(entities)
+
+        hass = SimpleNamespace(data={DOMAIN: mock_data})
+        await async_setup_entry(hass, mock_data.entry, async_add_entities)  # type: ignore[arg-type]
+
+        night_entities = [
+            e for e in added_entities if isinstance(e, DaikinOneNightModeStartTime | DaikinOneNightModeStopTime)
+        ]
+        assert len(night_entities) == 0
+
+
+class TestNightModeTimeEntities:
+    async def test_night_mode_start_time_set_value_optimistic(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(night_mode_start=88, night_mode_stop=28)
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
+
+        start = DaikinOneNightModeStartTime(TimeEntityDescription(key="night_mode_start"), mock_data, thermostat)
+        start.async_write_ha_state = MagicMock()
+
+        await start.async_set_value(datetime.time(23, 0))
+        # 23:00 is slot (23*60)/15 = 1380/15 = 92
+        mock_data.daikin.set_thermostat_night_mode_start.assert_called_once_with(thermostat.id, 92)
+        assert start.native_value == datetime.time(23, 0)
+
+    async def test_night_mode_stop_time_set_value_optimistic(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(night_mode_start=88, night_mode_stop=28)
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
+
+        stop = DaikinOneNightModeStopTime(TimeEntityDescription(key="night_mode_stop"), mock_data, thermostat)
+        stop.async_write_ha_state = MagicMock()
+
+        await stop.async_set_value(datetime.time(6, 30))
+        # 6:30 is slot (6*60+30)/15 = 390/15 = 26
+        mock_data.daikin.set_thermostat_night_mode_stop.assert_called_once_with(thermostat.id, 26)
+        assert stop.native_value == datetime.time(6, 30)
+
+    async def test_night_mode_unique_id_schema_versions(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(night_mode_start=88, night_mode_stop=28)
+
+        # Schema v0
+        entry_v0 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 0})
+        data_v0 = DaikinOneData(_hass=None, entry=entry_v0, daikin=mock_data.daikin)  # type: ignore[arg-type]
+        start_v0 = DaikinOneNightModeStartTime(TimeEntityDescription(key="night_mode_start"), data_v0, thermostat)
+        assert start_v0.unique_id == "device123-night_mode_start"
+
+        # Schema v1
+        entry_v1 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 1})
+        data_v1 = DaikinOneData(_hass=None, entry=entry_v1, daikin=mock_data.daikin)  # type: ignore[arg-type]
+        stop_v1 = DaikinOneNightModeStopTime(TimeEntityDescription(key="night_mode_stop"), data_v1, thermostat)
+        assert stop_v1.unique_id == "device123-night_mode_stop"
+
+        # Invalid Schema
+        entry_inv = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 99})
+        data_inv = DaikinOneData(_hass=None, entry=entry_inv, daikin=mock_data.daikin)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="unexpected entity uid schema version"):
+            DaikinOneNightModeStartTime(TimeEntityDescription(key="night_mode_start"), data_inv, thermostat)

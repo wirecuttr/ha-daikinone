@@ -35,6 +35,9 @@
     "switch": {
       "emergency_heat": {
         "name": "Emergency heat"
+      },
+      "night_mode": {
+        "name": "Night mode"
       }
     },
     "sensor": {
@@ -110,6 +113,12 @@
       },
       "fan_circulation_stop": {
         "name": "Fan circulation stop time"
+      },
+      "night_mode_start": {
+        "name": "Night mode start time"
+      },
+      "night_mode_stop": {
+        "name": "Night mode stop time"
       }
     },
     "select": {
