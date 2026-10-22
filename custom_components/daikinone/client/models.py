@@ -269,3 +269,74 @@ class DaikinThermostat(DaikinDevice):
     night_mode_start: int | None = None
     night_mode_stop: int | None = None
     night_mode_light_bar_allowed: bool | None = None
+
+    # Consumables & Maintenance Hardware Inventory Counters
+    num_media_filters: int | None = None
+    num_electronic_filters: int | None = None
+    num_hepa_filters: int | None = None
+    num_uv_bulbs: int | None = None
+    ct_humidifier_num_pads: int | None = None
+    aux_humidifier_status: bool | None = None
+    aux_dehumidifier_status: bool | None = None
+    aux_ventilator_status: bool | None = None
+    ct_system_cap_ventilation: bool | None = None
+
+    # Media Air Filter Reminders
+    media_air_filter_days: int | None = None
+    media_air_filter_days_limit: int | None = None
+    media_air_filter_runtime: int | None = None
+    media_air_filter_runtime_limit: int | None = None
+    media_air_filter_active: bool | None = None
+    media_air_filter_date: str | None = None
+
+    # Service Inspection Reminders
+    service_days: int | None = None
+    service_days_limit: int | None = None
+    service_active: bool | None = None
+    service_date: str | None = None
+
+    # Humidifier Pad Reminders
+    hum_pad_days: int | None = None
+    hum_pad_days_limit: int | None = None
+    hum_pad_runtime: int | None = None
+    hum_pad_runtime_limit: int | None = None
+    hum_pad_active: bool | None = None
+    hum_pad_date: str | None = None
+
+    # UV Disinfection Lamp Reminders
+    uv_days: int | None = None
+    uv_days_limit: int | None = None
+    uv_runtime: int | None = None
+    uv_runtime_limit: int | None = None
+    uv_active: bool | None = None
+    uv_date: str | None = None
+
+    # HEPA Air Filter Reminders
+    hepa_filter_days: int | None = None
+    hepa_filter_days_limit: int | None = None
+    hepa_filter_runtime: int | None = None
+    hepa_filter_runtime_limit: int | None = None
+    hepa_filter_active: bool | None = None
+    hepa_filter_date: str | None = None
+
+    # Electronic Air Filter Reminders
+    electronic_filter_days: int | None = None
+    electronic_filter_days_limit: int | None = None
+    electronic_filter_runtime: int | None = None
+    electronic_filter_runtime_limit: int | None = None
+    electronic_filter_active: bool | None = None
+    electronic_filter_date: str | None = None
+
+    # Dehumidifier Filter Reminders
+    dehum_filter_days: int | None = None
+    dehum_filter_days_limit: int | None = None
+    dehum_filter_runtime: int | None = None
+    dehum_filter_runtime_limit: int | None = None
+    dehum_filter_active: bool | None = None
+    dehum_filter_date: str | None = None
+
+    # Ventilator Core Reminders
+    ventilation_days: int | None = None
+    ventilation_days_limit: int | None = None
+    ventilation_active: bool | None = None
+    ventilation_date: str | None = None

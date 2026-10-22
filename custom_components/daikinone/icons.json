@@ -34,6 +34,56 @@
           "idle": "mdi:thermostat",
           "off": "mdi:power-off"
         }
+      },
+      "media_air_filter_life": {
+        "default": "mdi:air-filter"
+      },
+      "service_inspection_life": {
+        "default": "mdi:wrench-clock"
+      },
+      "humidifier_pad_life": {
+        "default": "mdi:water-percent"
+      },
+      "uv_lamp_life": {
+        "default": "mdi:lightbulb-alert"
+      },
+      "hepa_filter_life": {
+        "default": "mdi:air-filter"
+      },
+      "electronic_filter_life": {
+        "default": "mdi:air-filter"
+      },
+      "dehumidifier_filter_life": {
+        "default": "mdi:air-filter"
+      },
+      "ventilator_core_life": {
+        "default": "mdi:hvac"
+      }
+    },
+    "binary_sensor": {
+      "media_air_filter_replacement": {
+        "default": "mdi:air-filter"
+      },
+      "service_inspection_due": {
+        "default": "mdi:wrench-clock"
+      },
+      "humidifier_pad_replacement": {
+        "default": "mdi:water-alert"
+      },
+      "uv_lamp_replacement": {
+        "default": "mdi:lightbulb-alert"
+      },
+      "hepa_filter_replacement": {
+        "default": "mdi:air-filter"
+      },
+      "electronic_filter_replacement": {
+        "default": "mdi:air-filter"
+      },
+      "dehumidifier_filter_replacement": {
+        "default": "mdi:air-filter"
+      },
+      "ventilator_core_replacement": {
+        "default": "mdi:hvac"
       }
     },
     "number": {

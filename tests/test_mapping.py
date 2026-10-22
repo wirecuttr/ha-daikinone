@@ -1209,3 +1209,142 @@ class TestMapThermostatNightMode:
         assert thermostat.night_mode_start is None
         assert thermostat.night_mode_stop is None
         assert thermostat.night_mode_light_bar_allowed is None
+
+
+class TestMapThermostatConsumablesAndMaintenance:
+    """Test mapping of consumable inventory counters and maintenance telemetry."""
+
+    def test_consumable_mapping_full_payload(self) -> None:
+        """Verify complete mapping of all 8 consumable blocks with limits and active flags."""
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                # Hardware inventory
+                "NumMediafilters": 1,
+                "NumElectronicfilters": 1,
+                "NumHEPAfilters": 1,
+                "NumUVBulbs": 2,
+                "ctHumidifierNumPads": 1,
+                "AuxHumidifierStatus": True,
+                "AuxDehumidifierStatus": True,
+                "AuxVentilatorStatus": True,
+                "ctSystemCapVentilation": True,
+                # Media Filter
+                "alertMediaAirFilterDays": 105,
+                "alertMediaAirFilterDaysLimit": 186,
+                "alertMediaAirFilterRuntime": 500,
+                "alertMediaAirFilterRuntimeLimit": 1000,
+                "alertMediaAirFilterActive": False,
+                "alertMediaAirFilterDate": "2026-04-15",
+                # Service
+                "alertServiceDays": 96,
+                "alertServiceDaysLimit": 372,
+                "alertServiceActive": False,
+                "alertServiceDate": "2026-10-01",
+                # Humidifier Pad
+                "alertHumPadDays": 45,
+                "alertHumPadDaysLimit": 180,
+                "alertHumPadRuntime": 200,
+                "alertHumPadRuntimeLimit": 800,
+                "alertHumPadActive": False,
+                "alertHumPadDate": "2026-05-01",
+                # UV Lamp
+                "alertUVDays": 300,
+                "alertUVDaysLimit": 365,
+                "alertUVRuntime": 7000,
+                "alertUVRuntimeLimit": 8760,
+                "alertUVActive": False,
+                "alertUVDate": "2026-11-20",
+                # HEPA Filter
+                "alertHEPAAirFilterDays": 50,
+                "alertHEPAAirFilterDaysLimit": 365,
+                "alertHEPAAirFilterRuntime": 300,
+                "alertHEPAAirFilterRuntimeLimit": 2000,
+                "alertHEPAAirFilterActive": False,
+                "alertHEPAAirFilterDate": "2026-12-01",
+                # Electronic Filter
+                "alertElectronicAirFilterDays": 10,
+                "alertElectronicAirFilterDaysLimit": 90,
+                "alertElectronicAirFilterRuntime": 100,
+                "alertElectronicAirFilterRuntimeLimit": 500,
+                "alertElectronicAirFilterActive": False,
+                "alertElectronicAirFilterDate": "2026-02-01",
+                # Dehumidifier Filter
+                "alertDehumFilterDays": 20,
+                "alertDehumFilterDaysLimit": 180,
+                "alertDehumFilterRuntime": 150,
+                "alertDehumFilterRuntimeLimit": 600,
+                "alertDehumFilterActive": False,
+                "alertDehumFilterDate": "2026-06-01",
+                # Ventilator Core
+                "alertVentilationDays": 60,
+                "alertVentilationDaysLimit": 180,
+                "alertVentilationActive": False,
+                "alertVentilationDate": "2026-07-01",
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+
+        # Assert hardware inventory
+        assert thermostat.num_media_filters == 1
+        assert thermostat.num_electronic_filters == 1
+        assert thermostat.num_hepa_filters == 1
+        assert thermostat.num_uv_bulbs == 2
+        assert thermostat.ct_humidifier_num_pads == 1
+        assert thermostat.aux_humidifier_status is True
+        assert thermostat.aux_dehumidifier_status is True
+        assert thermostat.aux_ventilator_status is True
+        assert thermostat.ct_system_cap_ventilation is True
+
+        # Assert Media filter
+        assert thermostat.media_air_filter_days == 105
+        assert thermostat.media_air_filter_days_limit == 186
+        assert thermostat.media_air_filter_runtime == 500
+        assert thermostat.media_air_filter_runtime_limit == 1000
+        assert thermostat.media_air_filter_active is False
+        assert thermostat.media_air_filter_date == "2026-04-15"
+
+        # Assert Service
+        assert thermostat.service_days == 96
+        assert thermostat.service_days_limit == 372
+        assert thermostat.service_active is False
+
+    def test_consumable_mapping_absent_fields_default_to_none(self) -> None:
+        """Verify missing consumable and inventory keys map to None."""
+        device_data = _make_device()
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.num_media_filters is None
+        assert thermostat.media_air_filter_days is None
+        assert thermostat.media_air_filter_days_limit is None
+        assert thermostat.media_air_filter_active is None
+        assert thermostat.service_days is None
+        assert thermostat.service_days_limit is None
+        assert thermostat.service_active is None
+
+    def test_consumable_mapping_live_mainfloor_data(self) -> None:
+        """Verify mapping matches live MainFloor telemetry (media filter only, service limit 0)."""
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "NumMediafilters": 1,
+                "NumElectronicfilters": 0,
+                "NumHEPAfilters": 0,
+                "NumUVBulbs": 0,
+                "ctHumidifierNumPads": 0,
+                "AuxDehumidifierStatus": False,
+                "AuxHumidifierStatus": False,
+                "AuxVentilatorStatus": False,
+                "ctSystemCapVentilation": False,
+                "alertMediaAirFilterDays": 105,
+                "alertMediaAirFilterDaysLimit": 186,
+                "alertMediaAirFilterActive": False,
+                "alertServiceDaysLimit": 0,
+                "alertServiceActive": False,
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.num_media_filters == 1
+        assert thermostat.media_air_filter_days == 105
+        assert thermostat.media_air_filter_days_limit == 186
+        assert thermostat.media_air_filter_active is False
+        assert thermostat.service_days_limit == 0

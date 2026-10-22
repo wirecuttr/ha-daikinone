@@ -8,6 +8,7 @@ DOMAIN = "daikinone"
 MANUFACTURER = "Daikin"
 
 PLATFORMS = [
+    Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.CLIMATE,
     Platform.NUMBER,

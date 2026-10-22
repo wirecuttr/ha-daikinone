@@ -1,6 +1,7 @@
 """Pure functions that turn a Daikin device-data payload into domain models."""
 
 import logging
+from typing import Any
 
 from custom_components.daikinone.client import fields as f
 from custom_components.daikinone.client.models import (
@@ -58,6 +59,30 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         except ValueError, TypeError:
             aux_heat_lockout_temp = None
 
+    def _as_int(val: Any) -> int | None:
+        if val is None:
+            return None
+        try:
+            return int(val)
+        except ValueError, TypeError:
+            return None
+
+    def _as_bool(val: Any) -> bool | None:
+        if val is None:
+            return None
+        return bool(val)
+
+    # Hardware inventory counters
+    num_media_filters = _as_int(payload.data.get("NumMediafilters"))
+    num_electronic_filters = _as_int(payload.data.get("NumElectronicfilters"))
+    num_hepa_filters = _as_int(payload.data.get("NumHEPAfilters"))
+    num_uv_bulbs = _as_int(payload.data.get("NumUVBulbs"))
+    ct_humidifier_num_pads = _as_int(payload.data.get("ctHumidifierNumPads"))
+    aux_humidifier_status = _as_bool(payload.data.get("AuxHumidifierStatus"))
+    aux_dehumidifier_status = _as_bool(payload.data.get("AuxDehumidifierStatus"))
+    aux_ventilator_status = _as_bool(payload.data.get("AuxVentilatorStatus"))
+    ct_system_cap_ventilation = _as_bool(payload.data.get("ctSystemCapVentilation"))
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -99,6 +124,67 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         night_mode_start=payload.data.get("nightModeStart"),
         night_mode_stop=payload.data.get("nightModeStop"),
         night_mode_light_bar_allowed=payload.data.get("nightModeLightBarAllowed"),
+        num_media_filters=num_media_filters,
+        num_electronic_filters=num_electronic_filters,
+        num_hepa_filters=num_hepa_filters,
+        num_uv_bulbs=num_uv_bulbs,
+        ct_humidifier_num_pads=ct_humidifier_num_pads,
+        aux_humidifier_status=aux_humidifier_status,
+        aux_dehumidifier_status=aux_dehumidifier_status,
+        aux_ventilator_status=aux_ventilator_status,
+        ct_system_cap_ventilation=ct_system_cap_ventilation,
+        # Media filter
+        media_air_filter_days=_as_int(payload.data.get("alertMediaAirFilterDays")),
+        media_air_filter_days_limit=_as_int(payload.data.get("alertMediaAirFilterDaysLimit")),
+        media_air_filter_runtime=_as_int(payload.data.get("alertMediaAirFilterRuntime")),
+        media_air_filter_runtime_limit=_as_int(payload.data.get("alertMediaAirFilterRuntimeLimit")),
+        media_air_filter_active=_as_bool(payload.data.get("alertMediaAirFilterActive")),
+        media_air_filter_date=payload.data.get("alertMediaAirFilterDate"),
+        # Service
+        service_days=_as_int(payload.data.get("alertServiceDays")),
+        service_days_limit=_as_int(payload.data.get("alertServiceDaysLimit")),
+        service_active=_as_bool(payload.data.get("alertServiceActive")),
+        service_date=payload.data.get("alertServiceDate"),
+        # Humidifier pad
+        hum_pad_days=_as_int(payload.data.get("alertHumPadDays")),
+        hum_pad_days_limit=_as_int(payload.data.get("alertHumPadDaysLimit")),
+        hum_pad_runtime=_as_int(payload.data.get("alertHumPadRuntime")),
+        hum_pad_runtime_limit=_as_int(payload.data.get("alertHumPadRuntimeLimit")),
+        hum_pad_active=_as_bool(payload.data.get("alertHumPadActive")),
+        hum_pad_date=payload.data.get("alertHumPadDate"),
+        # UV lamp
+        uv_days=_as_int(payload.data.get("alertUVDays")),
+        uv_days_limit=_as_int(payload.data.get("alertUVDaysLimit")),
+        uv_runtime=_as_int(payload.data.get("alertUVRuntime")),
+        uv_runtime_limit=_as_int(payload.data.get("alertUVRuntimeLimit")),
+        uv_active=_as_bool(payload.data.get("alertUVActive")),
+        uv_date=payload.data.get("alertUVDate"),
+        # HEPA filter
+        hepa_filter_days=_as_int(payload.data.get("alertHEPAAirFilterDays")),
+        hepa_filter_days_limit=_as_int(payload.data.get("alertHEPAAirFilterDaysLimit")),
+        hepa_filter_runtime=_as_int(payload.data.get("alertHEPAAirFilterRuntime")),
+        hepa_filter_runtime_limit=_as_int(payload.data.get("alertHEPAAirFilterRuntimeLimit")),
+        hepa_filter_active=_as_bool(payload.data.get("alertHEPAAirFilterActive")),
+        hepa_filter_date=payload.data.get("alertHEPAAirFilterDate"),
+        # Electronic filter
+        electronic_filter_days=_as_int(payload.data.get("alertElectronicAirFilterDays")),
+        electronic_filter_days_limit=_as_int(payload.data.get("alertElectronicAirFilterDaysLimit")),
+        electronic_filter_runtime=_as_int(payload.data.get("alertElectronicAirFilterRuntime")),
+        electronic_filter_runtime_limit=_as_int(payload.data.get("alertElectronicAirFilterRuntimeLimit")),
+        electronic_filter_active=_as_bool(payload.data.get("alertElectronicAirFilterActive")),
+        electronic_filter_date=payload.data.get("alertElectronicAirFilterDate"),
+        # Dehumidifier filter
+        dehum_filter_days=_as_int(payload.data.get("alertDehumFilterDays")),
+        dehum_filter_days_limit=_as_int(payload.data.get("alertDehumFilterDaysLimit")),
+        dehum_filter_runtime=_as_int(payload.data.get("alertDehumFilterRuntime")),
+        dehum_filter_runtime_limit=_as_int(payload.data.get("alertDehumFilterRuntimeLimit")),
+        dehum_filter_active=_as_bool(payload.data.get("alertDehumFilterActive")),
+        dehum_filter_date=payload.data.get("alertDehumFilterDate"),
+        # Ventilator core
+        ventilation_days=_as_int(payload.data.get("alertVentilationDays")),
+        ventilation_days_limit=_as_int(payload.data.get("alertVentilationDaysLimit")),
+        ventilation_active=_as_bool(payload.data.get("alertVentilationActive")),
+        ventilation_date=payload.data.get("alertVentilationDate"),
     )
 
 
