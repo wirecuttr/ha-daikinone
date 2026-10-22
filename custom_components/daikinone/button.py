@@ -24,7 +24,7 @@ async def async_setup_entry(
             DaikinOneResumeScheduleButton(
                 description=ButtonEntityDescription(
                     key="resume_schedule",
-                    name="Resume Schedule",
+                    name="Resume schedule",
                     has_entity_name=True,
                     icon="mdi:calendar-check",
                 ),
