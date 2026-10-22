@@ -1,5 +1,6 @@
 """Number platform for Daikin One integration."""
 
+import asyncio
 import logging
 
 from homeassistant.components.number import (
@@ -19,6 +20,8 @@ from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERS
 from custom_components.daikinone.entity import DaikinOneEntity
 
 log = logging.getLogger(__name__)
+
+DEBOUNCE_DELAY: float = 0.8
 
 DUAL_FUEL_BALANCE_POINT_DESCRIPTION = NumberEntityDescription(
     key="dual_fuel_balance_point",
@@ -60,6 +63,9 @@ class DaikinOneDualFuelBalancePointNumber(DaikinOneEntity[DaikinThermostat], Num
     _attr_translation_key = "dual_fuel_balance_point"
     _attr_mode = NumberMode.BOX
 
+    _debounce_timer: asyncio.TimerHandle | None = None
+    _target_value: float | None = None
+
     def __init__(
         self,
         data: DaikinOneData,
@@ -77,6 +83,9 @@ class DaikinOneDualFuelBalancePointNumber(DaikinOneEntity[DaikinThermostat], Num
                 self._attr_unique_id = f"{self._device.id}-{self.entity_description.key}"
             case _:
                 raise ValueError("unexpected entity uid schema version")
+
+        self._debounce_timer = None
+        self._target_value = None
 
         self.update_entity_attributes()
 
@@ -112,12 +121,37 @@ class DaikinOneDualFuelBalancePointNumber(DaikinOneEntity[DaikinThermostat], Num
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the auxiliary heat lockout balance point temperature."""
+        self._device.aux_heat_lockout_temp = value
+        self._target_value = value
+        self.async_write_ha_state()
+
+        if self._debounce_timer is not None:
+            self._debounce_timer.cancel()
+
+        self._debounce_timer = self.hass.loop.call_later(
+            DEBOUNCE_DELAY,
+            lambda: self.hass.async_create_task(self._async_send_debounced_value()),
+        )
+
+    async def _async_send_debounced_value(self) -> None:
+        """Send the debounced target balance point value to the API."""
+        self._debounce_timer = None
+        target = self._target_value
+        if target is None:
+            return
 
         def update(t: DaikinThermostat) -> None:
-            t.aux_heat_lockout_temp = value
+            t.aux_heat_lockout_temp = target
 
         await self.update_state_optimistically(
-            operation=lambda: self._data.daikin.set_thermostat_aux_heat_lockout_temp(self._device.id, value),
+            operation=lambda: self._data.daikin.set_thermostat_aux_heat_lockout_temp(self._device.id, target),
             optimistic_update=update,
-            check=lambda t: t.aux_heat_lockout_temp == value,
+            check=lambda t: t.aux_heat_lockout_temp == target,
         )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel pending debounce timer when entity is removed from Home Assistant."""
+        if self._debounce_timer is not None:
+            self._debounce_timer.cancel()
+            self._debounce_timer = None
+        await super().async_will_remove_from_hass()
