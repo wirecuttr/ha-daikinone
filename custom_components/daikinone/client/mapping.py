@@ -1,5 +1,6 @@
 """Pure functions that turn a Daikin device-data payload into domain models."""
 
+from datetime import UTC, datetime
 import logging
 from typing import Any
 
@@ -7,6 +8,7 @@ from custom_components.daikinone.client import fields as f
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinEquipment,
+    DaikinEquipmentError,
     DaikinIndoorUnit,
     DaikinOneAirQualitySensorIndoor,
     DaikinOneAirQualitySensorOutdoor,
@@ -14,6 +16,7 @@ from custom_components.daikinone.client.models import (
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
+    DaikinSystemError,
     DaikinThermostat,
     DaikinThermostatCapability,
     DaikinThermostatFanCirculateDuration,
@@ -22,6 +25,7 @@ from custom_components.daikinone.client.models import (
     DaikinThermostatMode,
     DaikinThermostatSchedule,
     DaikinThermostatStatus,
+    format_error_code,
 )
 from custom_components.daikinone.client.wire import (
     DaikinDeviceDataResponse,
@@ -30,6 +34,80 @@ from custom_components.daikinone.client.wire import (
 )
 
 log = logging.getLogger(__name__)
+
+MIN_VALID_EPOCH_TIMESTAMP = 1_000_000_000
+
+
+def map_equipment_errors(
+    data: dict[str, Any],
+    max_entries: int = 3,
+) -> list[DaikinEquipmentError]:
+    """Extract and sort the most recent valid equipment errors from fault1..fault25."""
+    events: list[DaikinEquipmentError] = []
+
+    for idx in range(1, 26):
+        raw_code = data.get(f"fault{idx}Code")
+        epoch_date = data.get(f"fault{idx}Date")
+        level = data.get(f"fault{idx}Level")
+        eq_id = data.get(f"fault{idx}Equipment")
+
+        if not isinstance(raw_code, int) or raw_code in (0, 255):
+            continue
+        if not isinstance(epoch_date, int) or epoch_date < MIN_VALID_EPOCH_TIMESTAMP:
+            continue
+
+        hex_code = format_error_code(raw_code)
+        if hex_code is None:
+            continue
+
+        raw_level = int(level) if isinstance(level, int) and level not in (0, 255) else None
+        severity = "critical" if raw_level == 2 else "minor"
+
+        events.append(
+            DaikinEquipmentError(
+                timestamp=datetime.fromtimestamp(epoch_date, tz=UTC),
+                code=hex_code,
+                raw_code=raw_code,
+                severity=severity,
+                level=raw_level,
+                equipment_id=int(eq_id) if isinstance(eq_id, int) and eq_id != 255 else None,
+            )
+        )
+
+    events.sort(key=lambda item: item.timestamp, reverse=True)
+    return events[:max_entries]
+
+
+def map_system_errors(
+    data: dict[str, Any],
+    max_entries: int = 3,
+) -> list[DaikinSystemError]:
+    """Extract and sort the most recent valid thermostat system errors from sysFault1..sysFault20."""
+    events: list[DaikinSystemError] = []
+
+    for idx in range(1, 21):
+        raw_code = data.get(f"sysFault{idx}Code")
+        epoch_date = data.get(f"sysFault{idx}Date")
+
+        if not isinstance(raw_code, int) or raw_code in (0, 255):
+            continue
+        if not isinstance(epoch_date, int) or epoch_date < MIN_VALID_EPOCH_TIMESTAMP:
+            continue
+
+        hex_code = format_error_code(raw_code)
+        if hex_code is None:
+            continue
+
+        events.append(
+            DaikinSystemError(
+                timestamp=datetime.fromtimestamp(epoch_date, tz=UTC),
+                code=hex_code,
+                raw_code=raw_code,
+            )
+        )
+
+    events.sort(key=lambda item: item.timestamp, reverse=True)
+    return events[:max_entries]
 
 
 def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
@@ -190,6 +268,8 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         ventilation_days_limit=_as_int(payload.data.get("alertVentilationDaysLimit")),
         ventilation_active=_as_bool(payload.data.get("alertVentilationActive")),
         ventilation_date=_as_str(payload.data.get("alertVentilationDate")),
+        equipment_errors=map_equipment_errors(payload.data),
+        system_errors=map_system_errors(payload.data),
     )
 
 

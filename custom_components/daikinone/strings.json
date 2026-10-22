@@ -129,6 +129,12 @@
       },
       "ventilator_core_life": {
         "name": "Ventilator core life"
+      },
+      "last_equipment_error": {
+        "name": "Last equipment error"
+      },
+      "last_system_error": {
+        "name": "Last system error"
       }
     },
     "binary_sensor": {

@@ -1,13 +1,19 @@
-"""Tests for Daikin One consumable life sensors."""
+"""Tests for Daikin One consumable life and error history sensors."""
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.components.sensor import SensorEntityDescription
+from homeassistant.components.sensor.const import SensorDeviceClass
+from homeassistant.const import EntityCategory
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
+    DaikinEquipmentError,
+    DaikinSystemError,
     DaikinThermostat,
     DaikinThermostatCapability,
     DaikinThermostatFanMode,
@@ -18,8 +24,11 @@ from custom_components.daikinone.client.models import (
 )
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.sensor import (
+    ACTION_PROMPT_MESSAGE,
     CONSUMABLE_SENSOR_CONFIGS,
     DaikinOneConsumableLifeSensor,
+    DaikinOneEquipmentErrorHistorySensor,
+    DaikinOneSystemErrorHistorySensor,
     async_setup_entry,
 )
 from custom_components.daikinone.utils import Temperature
@@ -213,3 +222,162 @@ class TestConsumableLifeSensorUniqueIds:
         cfg = next(c for c in CONSUMABLE_SENSOR_CONFIGS if c.description.key == "media_air_filter_life")
         sensor = DaikinOneConsumableLifeSensor(cfg.description, data, t, cfg.days_key, cfg.limit_key)
         assert sensor.unique_id == "dtst123-media_air_filter_life"
+
+
+class TestErrorHistorySensors:
+    """Tests for equipment and system error history timestamp sensors."""
+
+    def test_equipment_error_sensor_state_and_top_3_attributes(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(
+            equipment_errors=[
+                DaikinEquipmentError(
+                    timestamp=datetime(2026, 10, 16, 5, 25, 43, tzinfo=UTC),
+                    code="14",
+                    raw_code=20,
+                    severity="minor",
+                    level=1,
+                    equipment_id=6,
+                ),
+                DaikinEquipmentError(
+                    timestamp=datetime(2026, 10, 3, 9, 28, 38, tzinfo=UTC),
+                    code="14",
+                    raw_code=20,
+                    severity="minor",
+                    level=1,
+                    equipment_id=6,
+                ),
+                DaikinEquipmentError(
+                    timestamp=datetime(2026, 9, 16, 8, 43, 6, tzinfo=UTC),
+                    code="B4",
+                    raw_code=180,
+                    severity="critical",
+                    level=2,
+                    equipment_id=3,
+                ),
+            ]
+        )
+        desc = SensorEntityDescription(
+            key="last_equipment_error",
+            name="Last equipment error",
+            has_entity_name=True,
+            device_class=SensorDeviceClass.TIMESTAMP,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            icon="mdi:alert-circle-outline",
+            translation_key="last_equipment_error",
+        )
+        sensor = DaikinOneEquipmentErrorHistorySensor(desc, mock_data, t)
+        assert sensor.native_value == datetime(2026, 10, 16, 5, 25, 43, tzinfo=UTC)
+        assert sensor.device_class == SensorDeviceClass.TIMESTAMP
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
+
+        attrs = sensor.extra_state_attributes
+        assert attrs["latest_code"] == "14"
+        assert attrs["latest_raw_code"] == 20
+        assert attrs["latest_severity"] == "minor"
+        assert attrs["latest_level"] == 1
+        assert attrs["latest_equipment_id"] == 6
+        assert len(attrs["recent_errors"]) == 3
+        assert attrs["recent_errors"][0] == {
+            "timestamp": "2026-10-16T05:25:43+00:00",
+            "code": "14",
+            "raw_code": 20,
+            "severity": "minor",
+            "level": 1,
+            "equipment_id": 6,
+        }
+        assert attrs["action_prompt"] == ACTION_PROMPT_MESSAGE
+
+    def test_system_error_sensor_state_and_top_3_attributes(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(
+            system_errors=[
+                DaikinSystemError(
+                    timestamp=datetime(2026, 7, 20, 20, 23, 40, tzinfo=UTC),
+                    code="10",
+                    raw_code=16,
+                ),
+                DaikinSystemError(
+                    timestamp=datetime(2026, 7, 6, 4, 20, 41, tzinfo=UTC),
+                    code="10",
+                    raw_code=16,
+                ),
+                DaikinSystemError(
+                    timestamp=datetime(2026, 6, 24, 22, 1, 51, tzinfo=UTC),
+                    code="05",
+                    raw_code=5,
+                ),
+            ]
+        )
+        desc = SensorEntityDescription(
+            key="last_system_error",
+            name="Last system error",
+            has_entity_name=True,
+            device_class=SensorDeviceClass.TIMESTAMP,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            icon="mdi:alert-outline",
+            translation_key="last_system_error",
+        )
+        sensor = DaikinOneSystemErrorHistorySensor(desc, mock_data, t)
+        assert sensor.native_value == datetime(2026, 7, 20, 20, 23, 40, tzinfo=UTC)
+        assert sensor.device_class == SensorDeviceClass.TIMESTAMP
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
+
+        attrs = sensor.extra_state_attributes
+        assert attrs["latest_code"] == "10"
+        assert attrs["latest_raw_code"] == 16
+        assert len(attrs["recent_errors"]) == 3
+        assert attrs["recent_errors"][0] == {
+            "timestamp": "2026-07-20T20:23:40+00:00",
+            "code": "10",
+            "raw_code": 16,
+        }
+        assert attrs["action_prompt"] == ACTION_PROMPT_MESSAGE
+
+    def test_empty_error_history_returns_none_state(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(equipment_errors=[], system_errors=[])
+        eq_desc = SensorEntityDescription(
+            key="last_equipment_error",
+            name="Last equipment error",
+            has_entity_name=True,
+            device_class=SensorDeviceClass.TIMESTAMP,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        sys_desc = SensorEntityDescription(
+            key="last_system_error",
+            name="Last system error",
+            has_entity_name=True,
+            device_class=SensorDeviceClass.TIMESTAMP,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        eq_sensor = DaikinOneEquipmentErrorHistorySensor(eq_desc, mock_data, t)
+        sys_sensor = DaikinOneSystemErrorHistorySensor(sys_desc, mock_data, t)
+
+        assert eq_sensor.native_value is None
+        assert eq_sensor.extra_state_attributes["latest_code"] is None
+        assert eq_sensor.extra_state_attributes["recent_errors"] == []
+
+        assert sys_sensor.native_value is None
+        assert sys_sensor.extra_state_attributes["latest_code"] is None
+        assert sys_sensor.extra_state_attributes["recent_errors"] == []
+
+    def test_unique_id_schema_v0_and_v1(self) -> None:
+        t = _create_mock_thermostat(id="dtst123")
+        eq_desc = SensorEntityDescription(
+            key="last_equipment_error",
+            name="Last equipment error",
+            has_entity_name=True,
+        )
+        sys_desc = SensorEntityDescription(
+            key="last_system_error",
+            name="Last system error",
+            has_entity_name=True,
+        )
+
+        entry_v0 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 0})
+        data_v0 = DaikinOneData(_hass=None, entry=entry_v0, daikin=MagicMock())  # type: ignore[arg-type]
+        assert DaikinOneEquipmentErrorHistorySensor(eq_desc, data_v0, t).unique_id == "dtst123-Last equipment error"
+        assert DaikinOneSystemErrorHistorySensor(sys_desc, data_v0, t).unique_id == "dtst123-Last system error"
+
+        entry_v1 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 1})
+        data_v1 = DaikinOneData(_hass=None, entry=entry_v1, daikin=MagicMock())  # type: ignore[arg-type]
+        assert DaikinOneEquipmentErrorHistorySensor(eq_desc, data_v1, t).unique_id == "dtst123-last_equipment_error"
+        assert DaikinOneSystemErrorHistorySensor(sys_desc, data_v1, t).unique_id == "dtst123-last_system_error"

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -21,6 +22,7 @@ from custom_components.daikinone.client.models import (
     DaikinThermostatMode,
     DaikinThermostatStatus,
     DaikinUserCredentials,
+    format_error_code,
 )
 
 
@@ -1355,3 +1357,80 @@ class TestMapThermostatConsumablesAndMaintenance:
         device_data["data"]["alertMediaAirFilterDate"] = 0
         thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
         assert thermostat.media_air_filter_date is None
+
+
+class TestMapEquipmentAndSystemErrors:
+    """Test mapping of equipment (fault1..25) and system (sysFault1..20) error history."""
+
+    def test_format_error_code(self) -> None:
+        assert format_error_code(None) is None
+        assert format_error_code(0) is None
+        assert format_error_code(255) is None
+        assert format_error_code(5) == "05"
+        assert format_error_code(16) == "10"
+        assert format_error_code(20) == "14"
+        assert format_error_code(180) == "B4"
+        assert format_error_code(236) == "EC"
+
+    def test_map_equipment_errors_returns_top_3_sorted_and_formats_hex(self) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "fault1Code": 20,
+                "fault1Date": 1792128343,
+                "fault1Level": 1,
+                "fault1Equipment": 6,
+                "fault2Code": 180,
+                "fault2Date": 1791019718,
+                "fault2Level": 2,
+                "fault2Equipment": 3,
+                "fault3Code": 236,
+                "fault3Date": 1789548186,
+                "fault3Level": 2,
+                "fault3Equipment": 3,
+                "fault4Code": 208,
+                "fault4Date": 1729524703,
+                "fault4Level": 2,
+                "fault4Equipment": 3,
+                "fault5Code": 0,
+                "fault5Date": 0,
+                "fault6Code": 255,
+                "fault6Date": 1793000000,
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.equipment_errors is not None
+        assert len(thermostat.equipment_errors) == 3
+
+        assert [e.code for e in thermostat.equipment_errors] == ["14", "B4", "EC"]
+        assert [e.raw_code for e in thermostat.equipment_errors] == [20, 180, 236]
+        assert [e.severity for e in thermostat.equipment_errors] == ["minor", "critical", "critical"]
+        assert [e.level for e in thermostat.equipment_errors] == [1, 2, 2]
+        assert [e.equipment_id for e in thermostat.equipment_errors] == [6, 3, 3]
+        assert thermostat.equipment_errors[0].timestamp == datetime(2026, 10, 16, 5, 25, 43, tzinfo=UTC)
+
+    def test_map_system_errors_filters_pre_ntp_22_and_returns_top_3(self) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "sysFault1Code": 16,
+                "sysFault1Date": 22,  # Pre-NTP boot uptime, must be skipped
+                "sysFault2Code": 16,
+                "sysFault2Date": 1784579020,
+                "sysFault3Code": 16,
+                "sysFault3Date": 22,
+                "sysFault4Code": 16,
+                "sysFault4Date": 1783311641,
+                "sysFault5Code": 5,
+                "sysFault5Date": 1760384142,
+                "sysFault6Code": 16,
+                "sysFault6Date": 1756383856,
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.system_errors is not None
+        assert len(thermostat.system_errors) == 3
+
+        assert [e.code for e in thermostat.system_errors] == ["10", "10", "05"]
+        assert [e.raw_code for e in thermostat.system_errors] == [16, 16, 5]
+        assert thermostat.system_errors[0].timestamp == datetime(2026, 7, 20, 20, 23, 40, tzinfo=UTC)
