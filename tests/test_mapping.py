@@ -1348,3 +1348,10 @@ class TestMapThermostatConsumablesAndMaintenance:
         assert thermostat.media_air_filter_days_limit == 186
         assert thermostat.media_air_filter_active is False
         assert thermostat.service_days_limit == 0
+
+    def test_consumable_mapping_zero_date_maps_to_none(self) -> None:
+        """Verify alert*Date with 0 maps to None instead of failing pydantic validation."""
+        device_data = _make_device()
+        device_data["data"]["alertMediaAirFilterDate"] = 0
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.media_air_filter_date is None

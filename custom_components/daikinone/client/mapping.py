@@ -72,6 +72,11 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
             return None
         return bool(val)
 
+    def _as_str(val: Any) -> str | None:
+        if val is None or val == 0 or val == "0":
+            return None
+        return str(val)
+
     # Hardware inventory counters
     num_media_filters = _as_int(payload.data.get("NumMediafilters"))
     num_electronic_filters = _as_int(payload.data.get("NumElectronicfilters"))
@@ -139,52 +144,52 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         media_air_filter_runtime=_as_int(payload.data.get("alertMediaAirFilterRuntime")),
         media_air_filter_runtime_limit=_as_int(payload.data.get("alertMediaAirFilterRuntimeLimit")),
         media_air_filter_active=_as_bool(payload.data.get("alertMediaAirFilterActive")),
-        media_air_filter_date=payload.data.get("alertMediaAirFilterDate"),
+        media_air_filter_date=_as_str(payload.data.get("alertMediaAirFilterDate")),
         # Service
         service_days=_as_int(payload.data.get("alertServiceDays")),
         service_days_limit=_as_int(payload.data.get("alertServiceDaysLimit")),
         service_active=_as_bool(payload.data.get("alertServiceActive")),
-        service_date=payload.data.get("alertServiceDate"),
+        service_date=_as_str(payload.data.get("alertServiceDate")),
         # Humidifier pad
         hum_pad_days=_as_int(payload.data.get("alertHumPadDays")),
         hum_pad_days_limit=_as_int(payload.data.get("alertHumPadDaysLimit")),
         hum_pad_runtime=_as_int(payload.data.get("alertHumPadRuntime")),
         hum_pad_runtime_limit=_as_int(payload.data.get("alertHumPadRuntimeLimit")),
         hum_pad_active=_as_bool(payload.data.get("alertHumPadActive")),
-        hum_pad_date=payload.data.get("alertHumPadDate"),
+        hum_pad_date=_as_str(payload.data.get("alertHumPadDate")),
         # UV lamp
         uv_days=_as_int(payload.data.get("alertUVDays")),
         uv_days_limit=_as_int(payload.data.get("alertUVDaysLimit")),
         uv_runtime=_as_int(payload.data.get("alertUVRuntime")),
         uv_runtime_limit=_as_int(payload.data.get("alertUVRuntimeLimit")),
         uv_active=_as_bool(payload.data.get("alertUVActive")),
-        uv_date=payload.data.get("alertUVDate"),
+        uv_date=_as_str(payload.data.get("alertUVDate")),
         # HEPA filter
         hepa_filter_days=_as_int(payload.data.get("alertHEPAAirFilterDays")),
         hepa_filter_days_limit=_as_int(payload.data.get("alertHEPAAirFilterDaysLimit")),
         hepa_filter_runtime=_as_int(payload.data.get("alertHEPAAirFilterRuntime")),
         hepa_filter_runtime_limit=_as_int(payload.data.get("alertHEPAAirFilterRuntimeLimit")),
         hepa_filter_active=_as_bool(payload.data.get("alertHEPAAirFilterActive")),
-        hepa_filter_date=payload.data.get("alertHEPAAirFilterDate"),
+        hepa_filter_date=_as_str(payload.data.get("alertHEPAAirFilterDate")),
         # Electronic filter
         electronic_filter_days=_as_int(payload.data.get("alertElectronicAirFilterDays")),
         electronic_filter_days_limit=_as_int(payload.data.get("alertElectronicAirFilterDaysLimit")),
         electronic_filter_runtime=_as_int(payload.data.get("alertElectronicAirFilterRuntime")),
         electronic_filter_runtime_limit=_as_int(payload.data.get("alertElectronicAirFilterRuntimeLimit")),
         electronic_filter_active=_as_bool(payload.data.get("alertElectronicAirFilterActive")),
-        electronic_filter_date=payload.data.get("alertElectronicAirFilterDate"),
+        electronic_filter_date=_as_str(payload.data.get("alertElectronicAirFilterDate")),
         # Dehumidifier filter
         dehum_filter_days=_as_int(payload.data.get("alertDehumFilterDays")),
         dehum_filter_days_limit=_as_int(payload.data.get("alertDehumFilterDaysLimit")),
         dehum_filter_runtime=_as_int(payload.data.get("alertDehumFilterRuntime")),
         dehum_filter_runtime_limit=_as_int(payload.data.get("alertDehumFilterRuntimeLimit")),
         dehum_filter_active=_as_bool(payload.data.get("alertDehumFilterActive")),
-        dehum_filter_date=payload.data.get("alertDehumFilterDate"),
+        dehum_filter_date=_as_str(payload.data.get("alertDehumFilterDate")),
         # Ventilator core
         ventilation_days=_as_int(payload.data.get("alertVentilationDays")),
         ventilation_days_limit=_as_int(payload.data.get("alertVentilationDaysLimit")),
         ventilation_active=_as_bool(payload.data.get("alertVentilationActive")),
-        ventilation_date=payload.data.get("alertVentilationDate"),
+        ventilation_date=_as_str(payload.data.get("alertVentilationDate")),
     )
 
 
