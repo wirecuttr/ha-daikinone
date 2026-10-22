@@ -1,11 +1,13 @@
 """Tests for Daikin One number platform (dual fuel balance point)."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.components.number import NumberDeviceClass, NumberMode
 from homeassistant.const import EntityCategory, UnitOfTemperature
+from homeassistant.core import HomeAssistant
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.client.client import DaikinOne
@@ -21,6 +23,7 @@ from custom_components.daikinone.client.models import (
 )
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.number import (
+    DEBOUNCE_DELAY,
     DUAL_FUEL_BALANCE_POINT_DESCRIPTION,
     DaikinOneDualFuelBalancePointNumber,
     async_setup_entry,
@@ -78,6 +81,20 @@ def mock_data() -> DaikinOneData:
     data = DaikinOneData(_hass=None, entry=entry, daikin=client)  # type: ignore[arg-type]
     data.update = AsyncMock()  # type: ignore[method-assign]
     return data
+
+
+@pytest.fixture
+async def mock_hass() -> MagicMock:
+    loop = asyncio.get_running_loop()
+    hass = MagicMock(spec=HomeAssistant)
+    hass.loop = loop
+    hass.async_create_task = MagicMock(side_effect=lambda coro: loop.create_task(coro))
+    return hass
+
+
+@pytest.fixture
+def fast_debounce(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("custom_components.daikinone.number.DEBOUNCE_DELAY", 0.02)
 
 
 class TestNumberPlatformSetup:
@@ -153,21 +170,122 @@ class TestAuxHeatLockoutTemperatureEntity:
         assert entity.native_value == 4.5
         assert isinstance(entity.native_value, float)
 
-    async def test_async_set_native_value_optimistic(self, mock_data: DaikinOneData) -> None:
+    def test_debounce_delay_constant(self) -> None:
+        assert DEBOUNCE_DELAY == 0.8
+
+    async def test_async_set_native_value_debounced_single_setpoint(
+        self, mock_data: DaikinOneData, mock_hass: MagicMock, fast_debounce: None
+    ) -> None:
+        """Setting value updates in-memory immediately and calls API once debounce timer fires."""
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
         mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
         entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
+        entity.hass = mock_hass
         entity.async_write_ha_state = MagicMock()
 
         await entity.async_set_native_value(5.0)
 
-        # In-memory device updated
+        # In-memory device updated immediately with optimistic state
         assert thermostat.aux_heat_lockout_temp == 5.0
         assert entity.native_value == 5.0
-        # Optimistic write and post-update write called
-        assert entity.async_write_ha_state.call_count >= 1
-        # API called
+        assert entity._target_value == 5.0
+        assert entity._debounce_timer is not None
+        assert entity.async_write_ha_state.call_count == 1
+        # API not yet called before debounce settling delay
+        mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_not_called()
+
+        # Advance event loop past debounce delay
+        await asyncio.sleep(0.05)
+
+        # Debounce timer cleared and API called with final target
+        assert entity._debounce_timer is None
         mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_called_once_with(thermostat.id, 5.0)
+        assert thermostat.aux_heat_lockout_temp == 5.0
+        assert entity.native_value == 5.0
+
+    async def test_async_set_native_value_debounce_coalescing(
+        self, mock_data: DaikinOneData, mock_hass: MagicMock, fast_debounce: None
+    ) -> None:
+        """Rapid clicks coalesce into a single trailing API write while rendering optimistically."""
+        thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
+        entity.hass = mock_hass
+        entity.async_write_ha_state = MagicMock()
+
+        # Rapidly call async_set_native_value 3 times in quick succession (e.g. user tapping [+] 3 times)
+        await entity.async_set_native_value(5.0)
+        assert entity.native_value == 5.0
+        assert thermostat.aux_heat_lockout_temp == 5.0
+        assert entity._target_value == 5.0
+
+        await entity.async_set_native_value(5.5)
+        assert entity.native_value == 5.5
+        assert thermostat.aux_heat_lockout_temp == 5.5
+        assert entity._target_value == 5.5
+
+        await entity.async_set_native_value(6.0)
+        assert entity.native_value == 6.0
+        assert thermostat.aux_heat_lockout_temp == 6.0
+        assert entity._target_value == 6.0
+
+        # Intermediate values were not transmitted to the API
+        mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_not_called()
+
+        # Advance / await loop by debounce delay
+        await asyncio.sleep(0.05)
+
+        # Assert API was called ONLY ONCE with the final coalesced target (6.0)
+        mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_called_once_with(thermostat.id, 6.0)
+        # Verify native_value rendered optimistically throughout
+        assert entity.native_value == 6.0
+        assert thermostat.aux_heat_lockout_temp == 6.0
+
+    async def test_async_will_remove_from_hass_cancels_timer(
+        self, mock_data: DaikinOneData, mock_hass: MagicMock, fast_debounce: None
+    ) -> None:
+        """Removing entity from hass cancels pending debounce timer and prevents API transmission."""
+        thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
+        entity.hass = mock_hass
+        entity.async_write_ha_state = MagicMock()
+
+        await entity.async_set_native_value(5.0)
+        assert entity._debounce_timer is not None
+        timer_handle = entity._debounce_timer
+
+        await entity.async_will_remove_from_hass()
+
+        assert entity._debounce_timer is None
+        assert timer_handle.cancelled()
+
+        # Advance loop past debounce delay
+        await asyncio.sleep(0.05)
+        mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_not_called()
+
+    async def test_async_will_remove_from_hass_no_timer(self, mock_data: DaikinOneData, mock_hass: MagicMock) -> None:
+        """Removing entity when no timer is active executes cleanly."""
+        thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
+        entity.hass = mock_hass
+
+        assert entity._debounce_timer is None
+        await entity.async_will_remove_from_hass()
+        assert entity._debounce_timer is None
+
+    async def test_async_send_debounced_value_noop_when_target_none(
+        self, mock_data: DaikinOneData, mock_hass: MagicMock
+    ) -> None:
+        """Debounced sender returns early if target value is None."""
+        thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
+        entity = DaikinOneDualFuelBalancePointNumber(mock_data, thermostat)
+        entity.hass = mock_hass
+
+        entity._target_value = None
+        await entity._async_send_debounced_value()
+
+        mock_data.daikin.set_thermostat_aux_heat_lockout_temp.assert_not_called()
 
     def test_dynamic_bounds_within_standard_range(self, mock_data: DaikinOneData) -> None:
         thermostat = _create_mock_thermostat(aux_heat_lockout_temp=4.5)
