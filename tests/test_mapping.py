@@ -15,6 +15,7 @@ from custom_components.daikinone.client.models import (
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
     DaikinThermostatCapability,
+    DaikinThermostatFanCirculateDuration,
     DaikinThermostatFanMode,
     DaikinThermostatFanSpeed,
     DaikinThermostatMode,
@@ -273,6 +274,92 @@ class TestMappingPreservesValidFields:
 
         thermostat = daikin_client.get_thermostats()["device123"]
         assert thermostat.dual_fuel_furnace_lockout_enable is None
+
+
+class TestFanCirculationAndNightModeMapping:
+    async def test_optional_fields_map_when_present(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "fanCirculateStart": 4,
+                "fanCirculateStop": 92,
+                "fanCirculateDuration": 2,
+                "nightModeEnabled": True,
+                "nightModeActive": False,
+                "nightModeStart": 88,
+                "nightModeStop": 28,
+                "nightModeLightBarAllowed": True,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.fan_circulate_start == 4
+        assert thermostat.fan_circulate_stop == 92
+        assert thermostat.fan_circulate_duration is DaikinThermostatFanCirculateDuration.MIN_15
+        assert thermostat.night_mode_enabled is True
+        assert thermostat.night_mode_active is False
+        assert thermostat.night_mode_start == 88
+        assert thermostat.night_mode_stop == 28
+        assert thermostat.night_mode_light_bar_allowed is True
+
+    async def test_optional_fields_are_none_when_absent(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [_make_device()]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.fan_circulate_start is None
+        assert thermostat.fan_circulate_stop is None
+        assert thermostat.fan_circulate_duration is None
+        assert thermostat.night_mode_enabled is None
+        assert thermostat.night_mode_active is None
+        assert thermostat.night_mode_start is None
+        assert thermostat.night_mode_stop is None
+        assert thermostat.night_mode_light_bar_allowed is None
+
+    async def test_unknown_duty_cycle_uses_unknown_enum(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["fanCirculateDuration"] = 255
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        assert (
+            daikin_client.get_thermostats()["device123"].fan_circulate_duration
+            is DaikinThermostatFanCirculateDuration.UNKNOWN
+        )
+
+    async def test_sentinel_schedule_values_are_treated_as_unavailable(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "fanCirculateStart": 255,
+                "fanCirculateStop": 65535,
+                "nightModeEnabled": 255,
+                "nightModeActive": 65535,
+                "nightModeStart": -32768,
+                "nightModeStop": 255,
+                "nightModeLightBarAllowed": 255,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.fan_circulate_start is None
+        assert thermostat.fan_circulate_stop is None
+        assert thermostat.night_mode_enabled is None
+        assert thermostat.night_mode_active is None
+        assert thermostat.night_mode_start is None
+        assert thermostat.night_mode_stop is None
+        assert thermostat.night_mode_light_bar_allowed is None
 
 
 class TestEquipmentSkippedOnInvalidIdentity:
@@ -598,7 +685,6 @@ class TestEnumSanitization:
         self, wire_value: int, expected_enum: DaikinOneAirQualitySensorSummaryLevel
     ) -> None:
         assert DaikinOneAirQualitySensorSummaryLevel(wire_value) is expected_enum
-
 
 
 class TestOneCleanFan:

@@ -109,7 +109,6 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
         """
         # pause entity updates
         self._updates_paused = True
-
         try:
             # execute change operation
             await operation()
@@ -122,8 +121,7 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
             # wait for remote state to be updated
             await self._wait_for_updated_value(check)
         finally:
-            # resume entity updates, even if the operation above failed, so a single transient
-            # error doesn't permanently freeze this entity until the integration is reloaded
+            # Resume polling after API or refresh failures.
             self._updates_paused = False
 
         # full entity update to make sure everything is in sync

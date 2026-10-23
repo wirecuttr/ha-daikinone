@@ -13,6 +13,7 @@ PLATFORMS = [
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.TIME,
 ]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=30)

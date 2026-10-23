@@ -218,6 +218,19 @@ class DaikinThermostatFanSpeed(Enum):
         return cls.UNKNOWN
 
 
+class DaikinThermostatFanCirculateDuration(Enum):
+    CONTINUOUS = 0
+    MIN_5 = 1
+    MIN_15 = 2
+    MIN_30 = 3
+    MIN_45 = 4
+    UNKNOWN = 255
+
+    @classmethod
+    def _missing_(cls, value: object) -> "DaikinThermostatFanCirculateDuration":
+        return cls.UNKNOWN
+
+
 @dataclass
 class DaikinThermostat(DaikinDevice):
     location_id: str
@@ -247,3 +260,11 @@ class DaikinThermostat(DaikinDevice):
     equipment: dict[str, DaikinEquipment]
     # Away Mode: True when geofencing away setback is active; None when unsupported
     away_mode: bool | None = None
+    fan_circulate_start: int | None = None
+    fan_circulate_stop: int | None = None
+    fan_circulate_duration: DaikinThermostatFanCirculateDuration | None = None
+    night_mode_enabled: bool | None = None
+    night_mode_active: bool | None = None
+    night_mode_start: int | None = None
+    night_mode_stop: int | None = None
+    night_mode_light_bar_allowed: bool | None = None
