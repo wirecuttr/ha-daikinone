@@ -138,6 +138,11 @@
       "night_mode_stop": {
         "name": "Night mode stop time"
       }
+    },
+    "number": {
+      "dual_fuel_balance_point": {
+        "name": "Dual fuel balance point"
+      }
     }
   }
 }

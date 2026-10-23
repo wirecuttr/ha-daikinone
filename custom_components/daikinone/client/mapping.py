@@ -1,6 +1,7 @@
 """Pure functions that turn a Daikin device-data payload into domain models."""
 
 import logging
+import math
 
 from custom_components.daikinone.client import fields as f
 from custom_components.daikinone.client.models import (
@@ -59,6 +60,16 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         away_mode = bool(away_mode)
 
     fan_circulate_duration_raw = payload.data.get("fanCirculateDuration")
+    aux_heat_lockout_temp = payload.data.get("auxHeatLockoutTemp")
+    if aux_heat_lockout_temp is not None:
+        try:
+            aux_heat_lockout_temp = float(aux_heat_lockout_temp)
+        except TypeError, ValueError:
+            aux_heat_lockout_temp = None
+        else:
+            if not math.isfinite(aux_heat_lockout_temp) or aux_heat_lockout_temp in {255, 65535, -32768}:
+                aux_heat_lockout_temp = None
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -103,6 +114,7 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         night_mode_start=_time_slot(payload.data.get("nightModeStart")),
         night_mode_stop=_time_slot(payload.data.get("nightModeStop")),
         night_mode_light_bar_allowed=_optional_bool(payload.data.get("nightModeLightBarAllowed")),
+        aux_heat_lockout_temp=aux_heat_lockout_temp,
     )
 
 

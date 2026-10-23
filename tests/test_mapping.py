@@ -205,6 +205,44 @@ class TestMappingPreservesValidFields:
         assert unit.inverter_fin_temperature is None
         assert unit.coil_temperature is not None
 
+
+class TestBalancePointMapping:
+    @pytest.mark.parametrize(
+        ("raw_value", "expected"),
+        [
+            (4.5, 4.5),
+            (4, 4.0),
+            ("4.5", 4.5),
+            (None, None),
+            ("invalid", None),
+            (float("nan"), None),
+            (float("inf"), None),
+            (255, None),
+            (65535, None),
+            (-32768, None),
+        ],
+    )
+    async def test_aux_heat_lockout_temperature_mapping(
+        self, daikin_client: DaikinOne, raw_value: Any, expected: float | None
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"]["auxHeatLockoutTemp"] = raw_value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        assert daikin_client.get_thermostats()["device123"].aux_heat_lockout_temp == expected
+
+    async def test_aux_heat_lockout_temperature_missing(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [_make_device()]
+            await daikin_client.update()
+
+        assert daikin_client.get_thermostats()["device123"].aux_heat_lockout_temp is None
+
+
+class TestAdditionalValidMappings:
     async def test_outdoor_garbage_runtime_becomes_none(self, daikin_client: DaikinOne) -> None:
         od = {**OUTDOOR_UNIT_DATA, "ctOutdoorCompressorRunTime": 4294967295}
         device_data = _make_device(od)

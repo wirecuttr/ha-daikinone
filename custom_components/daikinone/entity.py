@@ -121,7 +121,7 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
             # wait for remote state to be updated
             await self._wait_for_updated_value(check)
         finally:
-            # Resume polling after API or refresh failures.
+            # Always resume polling after API or refresh failures.
             self._updates_paused = False
 
         # full entity update to make sure everything is in sync
