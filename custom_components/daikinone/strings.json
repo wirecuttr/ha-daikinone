@@ -8,10 +8,19 @@
           "email": "Email",
           "password": "Password"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Daikin One",
+        "description": "Your Daikin One credentials are no longer valid. Please re-enter them.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
       }
     },
     "error": {
-      "auth_failed": "Authentication failed, please check your credentials and try again. Check the logs for more info."
+      "auth_failed": "Authentication failed, please check your credentials and try again. Check the logs for more info.",
+      "cannot_connect": "Unable to connect to the Daikin cloud API. Check the logs for more info and try again later."
     }
   },
   "entity": {
@@ -20,7 +29,8 @@
         "state_attributes": {
           "preset_mode": {
             "state": {
-              "away": "Away"
+              "away": "Away",
+              "emergency_heat": "Emergency heat"
             }
           },
           "fan_mode": {
@@ -35,6 +45,9 @@
     "switch": {
       "emergency_heat": {
         "name": "Emergency heat"
+      },
+      "night_mode": {
+        "name": "Night mode"
       }
     },
     "sensor": {
@@ -102,6 +115,89 @@
           "hazardous": "Hazardous",
           "unknown": "Unknown"
         }
+      },
+      "media_air_filter_life": {
+        "name": "Media air filter life"
+      },
+      "service_inspection_life": {
+        "name": "Service inspection life"
+      },
+      "humidifier_pad_life": {
+        "name": "Humidifier pad life"
+      },
+      "uv_lamp_life": {
+        "name": "UV lamp life"
+      },
+      "hepa_filter_life": {
+        "name": "HEPA filter life"
+      },
+      "electronic_filter_life": {
+        "name": "Electronic filter life"
+      },
+      "dehumidifier_filter_life": {
+        "name": "Dehumidifier filter life"
+      },
+      "ventilator_core_life": {
+        "name": "Ventilator core life"
+      },
+      "last_equipment_error": {
+        "name": "Last equipment error"
+      },
+      "last_system_error": {
+        "name": "Last system error"
+      }
+    },
+    "binary_sensor": {
+      "media_air_filter_replacement": {
+        "name": "Media air filter replacement"
+      },
+      "service_inspection_due": {
+        "name": "Service inspection due"
+      },
+      "humidifier_pad_replacement": {
+        "name": "Humidifier pad replacement"
+      },
+      "uv_lamp_replacement": {
+        "name": "UV lamp replacement"
+      },
+      "hepa_filter_replacement": {
+        "name": "HEPA filter replacement"
+      },
+      "electronic_filter_replacement": {
+        "name": "Electronic filter replacement"
+      },
+      "dehumidifier_filter_replacement": {
+        "name": "Dehumidifier filter replacement"
+      },
+      "ventilator_core_replacement": {
+        "name": "Ventilator core replacement"
+      }
+    },
+    "time": {
+      "fan_circulation_start": {
+        "name": "Fan circulation start time"
+      },
+      "fan_circulation_stop": {
+        "name": "Fan circulation stop time"
+      },
+      "night_mode_start": {
+        "name": "Night mode start time"
+      },
+      "night_mode_stop": {
+        "name": "Night mode stop time"
+      }
+    },
+    "select": {
+      "fan_speed": {
+        "name": "Fan circulation speed"
+      },
+      "fan_circulation_duty_cycle": {
+        "name": "Fan circulation duty cycle"
+      }
+    },
+    "number": {
+      "dual_fuel_balance_point": {
+        "name": "Dual fuel balance point"
       }
     }
   }

@@ -8,7 +8,12 @@ from homeassistant.components.sensor import SensorEntityDescription
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.mapping import MIN_VALID_EPOCH_TIMESTAMP
+from custom_components.daikinone.client.mapping import (
+    MAX_VALID_EPOCH_TIMESTAMP,
+    MIN_VALID_EPOCH_TIMESTAMP,
+    map_equipment_errors,
+    map_system_errors,
+)
 from custom_components.daikinone.client.models import DaikinThermostat, DaikinUserCredentials, format_error_code
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.sensor import (
@@ -49,6 +54,53 @@ def _epoch(year: int, month: int, day: int, hour: int, minute: int, second: int)
 
 
 class TestErrorHistoryMapping:
+    def test_equipment_errors_reject_invalid_codes_dates_and_metadata(self) -> None:
+        errors = map_equipment_errors(
+            {
+                "fault1Code": 20,
+                "fault1Date": _epoch(2026, 10, 16, 5, 25, 43),
+                "fault1Level": 3,
+                "fault1Equipment": 256,
+                "fault2Code": True,
+                "fault2Date": _epoch(2026, 10, 16, 5, 25, 43),
+                "fault3Code": 256,
+                "fault3Date": _epoch(2026, 10, 16, 5, 25, 43),
+                "fault4Code": 20,
+                "fault4Date": 4_294_967_295,
+                "fault5Code": 20,
+                "fault5Date": MAX_VALID_EPOCH_TIMESTAMP + 1,
+                "fault6Code": 20,
+                "fault6Date": True,
+            }
+        )
+
+        assert len(errors) == 1
+        assert errors[0].level is None
+        assert errors[0].equipment_id is None
+        assert errors[0].severity == "minor"
+
+    def test_system_errors_reject_invalid_codes_and_dates(self) -> None:
+        errors = map_system_errors(
+            {
+                "sysFault1Code": 16,
+                "sysFault1Date": 4_294_967_295,
+                "sysFault2Code": True,
+                "sysFault2Date": _epoch(2026, 10, 16, 5, 25, 43),
+                "sysFault3Code": -1,
+                "sysFault3Date": _epoch(2026, 10, 16, 5, 25, 43),
+                "sysFault4Code": 16,
+                "sysFault4Date": MAX_VALID_EPOCH_TIMESTAMP + 1,
+                "sysFault5Code": 16,
+                "sysFault5Date": True,
+            }
+        )
+
+        assert errors == []
+
+    def test_error_mapping_clamps_negative_entry_limit(self) -> None:
+        assert map_equipment_errors({}, max_entries=-1) == []
+        assert map_system_errors({}, max_entries=-1) == []
+
     async def test_equipment_errors_are_valid_sorted_and_limited(self, daikin_client: DaikinOne) -> None:
         thermostat = await _refresh(
             daikin_client,
@@ -119,9 +171,11 @@ class TestErrorHistoryMapping:
         assert format_error_code(180) == "B4"
         assert format_error_code(0) is None
         assert format_error_code(255) is None
+        assert format_error_code(-1) is None
         assert format_error_code(256) is None
         assert format_error_code(True) is None
         assert MIN_VALID_EPOCH_TIMESTAMP == 1_000_000_000
+        assert MAX_VALID_EPOCH_TIMESTAMP == 253_402_300_799
 
 
 class TestErrorHistorySensors:

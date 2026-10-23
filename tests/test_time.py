@@ -143,6 +143,48 @@ async def test_time_write_converts_to_slot_and_updates_optimistically() -> None:
     assert thermostat.fan_circulate_start == 13
 
 
+@pytest.mark.parametrize(
+    ("entity_type", "key", "api_method", "thermostat_field"),
+    [
+        (
+            DaikinOneNightModeStartTime,
+            "night_mode_start",
+            "set_thermostat_night_mode_start",
+            "night_mode_start",
+        ),
+        (
+            DaikinOneNightModeStopTime,
+            "night_mode_stop",
+            "set_thermostat_night_mode_stop",
+            "night_mode_stop",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_night_mode_time_writes_optimistically(
+    entity_type: type[TimeEntity],
+    key: str,
+    api_method: str,
+    thermostat_field: str,
+) -> None:
+    thermostat = _thermostat(nightModeStart=88, nightModeStop=28)
+    data = _data(thermostat)
+    entity = entity_type(
+        description=SimpleNamespace(key=key, name=key),
+        data=data,
+        thermostat=thermostat,
+    )
+    entity.update_state_optimistically = AsyncMock()  # type: ignore[method-assign]
+
+    await entity.async_set_value(datetime.time(3, 8))
+    kwargs = entity.update_state_optimistically.await_args.kwargs
+    await kwargs["operation"]()
+
+    getattr(data.daikin, api_method).assert_awaited_once_with("device123", 13)
+    kwargs["optimistic_update"](thermostat)
+    assert getattr(thermostat, thermostat_field) == 13
+
+
 @pytest.mark.asyncio
 async def test_optimistic_update_resumes_after_api_failure() -> None:
     thermostat = _thermostat(fanCirculateStart=4, fanCirculateStop=92)
