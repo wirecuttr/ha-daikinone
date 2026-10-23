@@ -24,32 +24,6 @@
     }
   },
   "entity": {
-    "sensor": {
-      "media_air_filter_life": {
-        "name": "Media air filter life"
-      },
-      "service_inspection_life": {
-        "name": "Service inspection life"
-      },
-      "humidifier_pad_life": {
-        "name": "Humidifier pad life"
-      },
-      "uv_lamp_life": {
-        "name": "UV lamp life"
-      },
-      "hepa_filter_life": {
-        "name": "HEPA filter life"
-      },
-      "electronic_filter_life": {
-        "name": "Electronic filter life"
-      },
-      "dehumidifier_filter_life": {
-        "name": "Dehumidifier filter life"
-      },
-      "ventilator_core_life": {
-        "name": "Ventilator core life"
-      }
-    },
     "binary_sensor": {
       "media_air_filter_replacement": {
         "name": "Media air filter replacement"
@@ -111,6 +85,36 @@
       }
     },
     "sensor": {
+      "media_air_filter_life": {
+        "name": "Media air filter life"
+      },
+      "service_inspection_life": {
+        "name": "Service inspection life"
+      },
+      "humidifier_pad_life": {
+        "name": "Humidifier pad life"
+      },
+      "uv_lamp_life": {
+        "name": "UV lamp life"
+      },
+      "hepa_filter_life": {
+        "name": "HEPA filter life"
+      },
+      "electronic_filter_life": {
+        "name": "Electronic filter life"
+      },
+      "dehumidifier_filter_life": {
+        "name": "Dehumidifier filter life"
+      },
+      "ventilator_core_life": {
+        "name": "Ventilator core life"
+      },
+      "last_equipment_error": {
+        "name": "Last equipment error"
+      },
+      "last_system_error": {
+        "name": "Last system error"
+      },
       "operating_state": {
         "name": "Operating state",
         "state": {
