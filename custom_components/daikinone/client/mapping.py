@@ -2,6 +2,7 @@
 
 import logging
 import math
+from typing import Any
 
 from custom_components.daikinone.client import fields as f
 from custom_components.daikinone.client.models import (
@@ -70,6 +71,40 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
             if not math.isfinite(aux_heat_lockout_temp) or aux_heat_lockout_temp in {255, 65535, -32768}:
                 aux_heat_lockout_temp = None
 
+    def as_int(value: Any) -> int | None:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            result = int(value)
+        except ValueError, TypeError, OverflowError:
+            return None
+        if isinstance(value, float) and not value.is_integer():
+            return None
+        if result < 0 or result in (255, 65535, 4294967295):
+            return None
+        return result
+
+    def as_bool(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int) and value in (0, 1):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1"):
+                return True
+            if normalized in ("false", "0"):
+                return False
+        return None
+
+    def as_str(value: Any) -> str | None:
+        if value is None or value == 0 or value == "0":
+            return None
+        if value in (255, 65535, -32768, 4294967295):
+            return None
+        return str(value)
+
+    data = payload.data
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -115,6 +150,59 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         night_mode_stop=_time_slot(payload.data.get("nightModeStop")),
         night_mode_light_bar_allowed=_optional_bool(payload.data.get("nightModeLightBarAllowed")),
         aux_heat_lockout_temp=aux_heat_lockout_temp,
+        num_media_filters=as_int(data.get("NumMediafilters")),
+        num_electronic_filters=as_int(data.get("NumElectronicfilters")),
+        num_hepa_filters=as_int(data.get("NumHEPAfilters")),
+        num_uv_bulbs=as_int(data.get("NumUVBulbs")),
+        ct_humidifier_num_pads=as_int(data.get("ctHumidifierNumPads")),
+        aux_humidifier_status=as_bool(data.get("AuxHumidifierStatus")),
+        aux_dehumidifier_status=as_bool(data.get("AuxDehumidifierStatus")),
+        aux_ventilator_status=as_bool(data.get("AuxVentilatorStatus")),
+        ct_system_cap_ventilation=as_bool(data.get("ctSystemCapVentilation")),
+        media_air_filter_days=as_int(data.get("alertMediaAirFilterDays")),
+        media_air_filter_days_limit=as_int(data.get("alertMediaAirFilterDaysLimit")),
+        media_air_filter_runtime=as_int(data.get("alertMediaAirFilterRuntime")),
+        media_air_filter_runtime_limit=as_int(data.get("alertMediaAirFilterRuntimeLimit")),
+        media_air_filter_active=as_bool(data.get("alertMediaAirFilterActive")),
+        media_air_filter_date=as_str(data.get("alertMediaAirFilterDate")),
+        service_days=as_int(data.get("alertServiceDays")),
+        service_days_limit=as_int(data.get("alertServiceDaysLimit")),
+        service_active=as_bool(data.get("alertServiceActive")),
+        service_date=as_str(data.get("alertServiceDate")),
+        hum_pad_days=as_int(data.get("alertHumPadDays")),
+        hum_pad_days_limit=as_int(data.get("alertHumPadDaysLimit")),
+        hum_pad_runtime=as_int(data.get("alertHumPadRuntime")),
+        hum_pad_runtime_limit=as_int(data.get("alertHumPadRuntimeLimit")),
+        hum_pad_active=as_bool(data.get("alertHumPadActive")),
+        hum_pad_date=as_str(data.get("alertHumPadDate")),
+        uv_days=as_int(data.get("alertUVDays")),
+        uv_days_limit=as_int(data.get("alertUVDaysLimit")),
+        uv_runtime=as_int(data.get("alertUVRuntime")),
+        uv_runtime_limit=as_int(data.get("alertUVRuntimeLimit")),
+        uv_active=as_bool(data.get("alertUVActive")),
+        uv_date=as_str(data.get("alertUVDate")),
+        hepa_filter_days=as_int(data.get("alertHEPAAirFilterDays")),
+        hepa_filter_days_limit=as_int(data.get("alertHEPAAirFilterDaysLimit")),
+        hepa_filter_runtime=as_int(data.get("alertHEPAAirFilterRuntime")),
+        hepa_filter_runtime_limit=as_int(data.get("alertHEPAAirFilterRuntimeLimit")),
+        hepa_filter_active=as_bool(data.get("alertHEPAAirFilterActive")),
+        hepa_filter_date=as_str(data.get("alertHEPAAirFilterDate")),
+        electronic_filter_days=as_int(data.get("alertElectronicAirFilterDays")),
+        electronic_filter_days_limit=as_int(data.get("alertElectronicAirFilterDaysLimit")),
+        electronic_filter_runtime=as_int(data.get("alertElectronicAirFilterRuntime")),
+        electronic_filter_runtime_limit=as_int(data.get("alertElectronicAirFilterRuntimeLimit")),
+        electronic_filter_active=as_bool(data.get("alertElectronicAirFilterActive")),
+        electronic_filter_date=as_str(data.get("alertElectronicAirFilterDate")),
+        dehum_filter_days=as_int(data.get("alertDehumFilterDays")),
+        dehum_filter_days_limit=as_int(data.get("alertDehumFilterDaysLimit")),
+        dehum_filter_runtime=as_int(data.get("alertDehumFilterRuntime")),
+        dehum_filter_runtime_limit=as_int(data.get("alertDehumFilterRuntimeLimit")),
+        dehum_filter_active=as_bool(data.get("alertDehumFilterActive")),
+        dehum_filter_date=as_str(data.get("alertDehumFilterDate")),
+        ventilation_days=as_int(data.get("alertVentilationDays")),
+        ventilation_days_limit=as_int(data.get("alertVentilationDaysLimit")),
+        ventilation_active=as_bool(data.get("alertVentilationActive")),
+        ventilation_date=as_str(data.get("alertVentilationDate")),
     )
 
 
