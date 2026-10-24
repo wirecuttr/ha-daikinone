@@ -82,6 +82,34 @@ async def async_setup_entry(
                 ]
             )
 
+        if (
+            thermostat.quiet_mode_ho_display_enable is True
+            and thermostat.quiet_mode_start_time is not None
+            and thermostat.quiet_mode_stop_time is not None
+        ):
+            entities.extend(
+                [
+                    DaikinOneQuietModeStartTime(
+                        _description(
+                            "quiet_mode_start_time",
+                            "Quiet mode start time",
+                            "mdi:clock-start",
+                        ),
+                        data,
+                        thermostat,
+                    ),
+                    DaikinOneQuietModeStopTime(
+                        _description(
+                            "quiet_mode_stop_time",
+                            "Quiet mode stop time",
+                            "mdi:clock-end",
+                        ),
+                        data,
+                        thermostat,
+                    ),
+                ]
+            )
+
     async_add_entities(entities, True)
 
 
@@ -195,4 +223,42 @@ class DaikinOneNightModeStopTime(_DaikinOneScheduleTime):
             operation=lambda: self._data.daikin.set_thermostat_night_mode_stop(self._device.id, slot),
             optimistic_update=update,
             check=lambda thermostat: thermostat.night_mode_stop == slot,
+        )
+
+
+class DaikinOneQuietModeStartTime(_DaikinOneScheduleTime):
+    """Configure outdoor unit inverter quiet mode start time."""
+
+    def update_entity_attributes(self) -> None:
+        self._attr_native_value = _slot_to_time(self._device.quiet_mode_start_time)
+
+    async def async_set_value(self, value: datetime.time) -> None:
+        slot = _time_to_slot(value)
+
+        def update(thermostat: DaikinThermostat) -> None:
+            thermostat.quiet_mode_start_time = slot
+
+        await self.update_state_optimistically(
+            operation=lambda: self._data.daikin.set_thermostat_quiet_mode_start_time(self._device.id, slot),
+            optimistic_update=update,
+            check=lambda thermostat: thermostat.quiet_mode_start_time == slot,
+        )
+
+
+class DaikinOneQuietModeStopTime(_DaikinOneScheduleTime):
+    """Configure outdoor unit inverter quiet mode stop time."""
+
+    def update_entity_attributes(self) -> None:
+        self._attr_native_value = _slot_to_time(self._device.quiet_mode_stop_time)
+
+    async def async_set_value(self, value: datetime.time) -> None:
+        slot = _time_to_slot(value)
+
+        def update(thermostat: DaikinThermostat) -> None:
+            thermostat.quiet_mode_stop_time = slot
+
+        await self.update_state_optimistically(
+            operation=lambda: self._data.daikin.set_thermostat_quiet_mode_stop_time(self._device.id, slot),
+            optimistic_update=update,
+            check=lambda thermostat: thermostat.quiet_mode_stop_time == slot,
         )

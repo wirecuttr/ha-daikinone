@@ -92,6 +92,11 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         night_mode_start=_time_slot(payload.data.get("nightModeStart")),
         night_mode_stop=_time_slot(payload.data.get("nightModeStop")),
         night_mode_light_bar_allowed=_optional_bool(payload.data.get("nightModeLightBarAllowed")),
+        quiet_mode_enabled=_optional_bool(payload.data.get("ctOutdoorQuietModeEnabled")),
+        quiet_mode_active=_optional_bool(payload.data.get("quietModeActive")),
+        quiet_mode_start_time=_time_slot(payload.data.get("quietModeStartTime")),
+        quiet_mode_stop_time=_time_slot(payload.data.get("quietModeStopTime")),
+        quiet_mode_ho_display_enable=_optional_bool(payload.data.get("ctQuietModeHODisplayEnable")),
     )
 
 

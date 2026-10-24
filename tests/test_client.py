@@ -36,3 +36,46 @@ async def test_schedule_api_writes(method: str, value: object, key: str) -> None
         method="PUT",
         body={key: expected_value},
     )
+
+
+@pytest.mark.parametrize(
+    ("method", "value", "key", "expected_value"),
+    [
+        ("set_thermostat_quiet_mode_enabled", True, "ctOutdoorQuietModeEnabled", 1),
+        ("set_thermostat_quiet_mode_enabled", False, "ctOutdoorQuietModeEnabled", 0),
+        ("set_thermostat_quiet_mode_start_time", 88, "quietModeStartTime", 88),
+        ("set_thermostat_quiet_mode_stop_time", 28, "quietModeStopTime", 28),
+    ],
+)
+async def test_quiet_mode_api_writes(method: str, value: object, key: str, expected_value: object) -> None:
+    client = object.__new__(DaikinOne)
+    client._transport = SimpleNamespace(request=AsyncMock())
+
+    await getattr(client, method)("thermostat-id", value)
+
+    client._transport.request.assert_awaited_once_with(
+        url=f"{DAIKIN_API_URL_DEVICE_DATA}/thermostat-id",
+        method="PUT",
+        body={key: expected_value},
+    )
+
+
+async def test_quiet_mode_optimistic_cache_mutation() -> None:
+    client = object.__new__(DaikinOne)
+    client._transport = SimpleNamespace(request=AsyncMock())
+    thermostat = SimpleNamespace(
+        id="dev1",
+        quiet_mode_enabled=False,
+        quiet_mode_start_time=0,
+        quiet_mode_stop_time=0,
+    )
+    client._DaikinOne__thermostats = {"dev1": thermostat}
+
+    await client.set_thermostat_quiet_mode_enabled("dev1", True)
+    assert thermostat.quiet_mode_enabled is True
+
+    await client.set_thermostat_quiet_mode_start_time("dev1", 88)
+    assert thermostat.quiet_mode_start_time == 88
+
+    await client.set_thermostat_quiet_mode_stop_time("dev1", 28)
+    assert thermostat.quiet_mode_stop_time == 28

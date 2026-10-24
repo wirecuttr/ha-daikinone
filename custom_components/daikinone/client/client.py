@@ -158,3 +158,33 @@ class DaikinOne:
             method="PUT",
             body={"nightModeStop": stop},
         )
+
+    async def set_thermostat_quiet_mode_enabled(self, thermostat_id: str, enabled: bool) -> None:
+        """Set outdoor unit inverter quiet mode state."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"ctOutdoorQuietModeEnabled": 1 if enabled else 0},
+        )
+        if thermostat_id in self.__thermostats:
+            self.__thermostats[thermostat_id].quiet_mode_enabled = enabled
+
+    async def set_thermostat_quiet_mode_start_time(self, thermostat_id: str, slot: int) -> None:
+        """Set outdoor unit inverter quiet mode start time slot (0-95)."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"quietModeStartTime": slot},
+        )
+        if thermostat_id in self.__thermostats:
+            self.__thermostats[thermostat_id].quiet_mode_start_time = slot
+
+    async def set_thermostat_quiet_mode_stop_time(self, thermostat_id: str, slot: int) -> None:
+        """Set outdoor unit inverter quiet mode stop time slot (0-95)."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"quietModeStopTime": slot},
+        )
+        if thermostat_id in self.__thermostats:
+            self.__thermostats[thermostat_id].quiet_mode_stop_time = slot
