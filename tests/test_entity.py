@@ -3,10 +3,12 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from homeassistant.components.climate import ClimateEntityDescription
 from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription
 
 from custom_components.daikinone import DaikinOneData
+from custom_components.daikinone.climate import DaikinOneThermostat
 from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
     DaikinIndoorUnit,
@@ -120,6 +122,153 @@ class TestEntityAvailability:
 
         assert sensor.available is True
         assert sensor.native_value == 45
+
+    async def test_thermostat_entity_available_when_online_and_unavailable_when_offline(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify thermostat entity availability is True when online and False when offline."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await _refresh(daikin_client, mock_req, _make_device())
+            thermostat = daikin_client.get_thermostat("device123")
+            sensor = DaikinOneThermostatSensor(
+                description=_humidity_description(),
+                data=data,
+                device=thermostat,
+                attribute=lambda t: t.indoor_humidity,
+            )
+            assert sensor.available is True
+
+            # Device goes offline via empty data payload
+            offline_payload = {"id": "device123", "name": "Device 123", "online": False, "data": {}}
+            await _refresh(daikin_client, mock_req, offline_payload)
+            await sensor.async_update(no_throttle=True)
+
+            assert sensor.available is False
+
+            # Device recovers
+            await _refresh(daikin_client, mock_req, _make_device())
+            await sensor.async_update(no_throttle=True)
+
+            assert sensor.available is True
+
+    async def test_child_equipment_inherits_thermostat_availability(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify child equipment inherits online/offline availability from parent thermostat."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await _refresh(daikin_client, mock_req, _make_device(AIR_HANDLER_DATA))
+            thermostat = daikin_client.get_thermostat("device123")
+            unit = next(e for e in thermostat.equipment.values() if isinstance(e, DaikinIndoorUnit))
+            sensor = DaikinOneEquipmentSensor(
+                description=_power_description(),
+                data=data,
+                device=unit,
+                attribute=lambda e: e.power_usage,
+            )
+            assert sensor.available is True
+
+            # Parent thermostat goes offline
+            offline_payload = {"id": "device123", "name": "Device 123", "online": False, "data": {}}
+            await _refresh(daikin_client, mock_req, offline_payload)
+            await sensor.async_update(no_throttle=True)
+
+            assert sensor.available is False
+
+            # Parent thermostat recovers
+            await _refresh(daikin_client, mock_req, _make_device(AIR_HANDLER_DATA))
+            await sensor.async_update(no_throttle=True)
+
+            assert sensor.available is True
+
+    async def test_online_status_sensor_remains_available_when_offline(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify online status diagnostic sensor remains available and reports 'Offline' when offline."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await _refresh(daikin_client, mock_req, _make_device())
+            thermostat = daikin_client.get_thermostat("device123")
+            online_desc = SensorEntityDescription(
+                key="online",
+                name="Online Status",
+                has_entity_name=True,
+                device_class=SensorDeviceClass.ENUM,
+            )
+            online_sensor = DaikinOneThermostatSensor(
+                description=online_desc,
+                data=data,
+                device=thermostat,
+                attribute=lambda d: "Online" if d.online else "Offline",
+            )
+            online_sensor.update_entity_attributes()
+            assert online_sensor.available is True
+            assert online_sensor.native_value == "Online"
+
+            # Thermostat goes offline
+            offline_payload = {"id": "device123", "name": "Device 123", "online": False, "data": {}}
+            await _refresh(daikin_client, mock_req, offline_payload)
+            await online_sensor.async_update(no_throttle=True)
+
+            # Diagnostic sensor remains available so HA displays "Offline" rather than "Unavailable"
+            assert online_sensor.available is True
+            assert online_sensor.native_value == "Offline"
+
+    async def test_climate_entity_available_when_online_and_unavailable_when_offline(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify climate entity availability is natively driven by thermostat online status."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await _refresh(daikin_client, mock_req, _make_device())
+            thermostat = daikin_client.get_thermostat("device123")
+            climate_entity = DaikinOneThermostat(
+                description=ClimateEntityDescription(key="climate", has_entity_name=True),
+                data=data,
+                thermostat=thermostat,
+            )
+            assert climate_entity.available is True
+
+            # Thermostat goes offline
+            offline_payload = {"id": "device123", "name": "Device 123", "online": False, "data": {}}
+            await _refresh(daikin_client, mock_req, offline_payload)
+            await climate_entity.async_update(no_throttle=True)
+
+            assert climate_entity.available is False
+
+            # Thermostat recovers
+            await _refresh(daikin_client, mock_req, _make_device())
+            await climate_entity.async_update(no_throttle=True)
+
+            assert climate_entity.available is True
+
+    async def test_control_entity_available_when_online_and_unavailable_when_offline(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify control entities (select, switch, number) are unavailable when thermostat is offline."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await _refresh(daikin_client, mock_req, _make_device())
+            thermostat = daikin_client.get_thermostat("device123")
+            select = DaikinOneDualFuelPrioritySelect(
+                description=SelectEntityDescription(
+                    key="dual_fuel_priority",
+                    name="Dual Fuel Priority",
+                    options=DUAL_FUEL_PRIORITY_OPTIONS,
+                ),
+                data=data,
+                thermostat=thermostat,
+            )
+            assert select.available is True
+
+            # Thermostat goes offline
+            offline_payload = {"id": "device123", "name": "Device 123", "online": False, "data": {}}
+            await _refresh(daikin_client, mock_req, offline_payload)
+            await select.async_update(no_throttle=True)
+
+            assert select.available is False
+
+            # Thermostat recovers
+            await _refresh(daikin_client, mock_req, _make_device())
+            await select.async_update(no_throttle=True)
+
+            assert select.available is True
 
 
 class TestDualFuelPrioritySelect:

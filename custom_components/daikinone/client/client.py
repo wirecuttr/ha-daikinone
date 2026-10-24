@@ -49,7 +49,9 @@ class DaikinOne:
 
         for r in responses:
             if not r.online and len(r.data) == 0:
-                log.warning(f"Skipping offline device with no data: {r.name} ({r.id})")
+                if r.id in self.__thermostats:
+                    self.__thermostats[r.id].online = False
+                log.warning("Device %s (%s) reported offline with no data", r.name, r.id)
                 continue
             try:
                 self.__thermostats[r.id] = map_thermostat(r)
@@ -72,6 +74,11 @@ class DaikinOne:
 
     def get_thermostats(self) -> dict[str, DaikinThermostat]:
         return copy.deepcopy(self.__thermostats)
+
+    @property
+    def thermostats(self) -> dict[str, DaikinThermostat]:
+        """Return cached thermostats."""
+        return self.get_thermostats()
 
     async def set_thermostat_mode(self, thermostat_id: str, mode: DaikinThermostatMode) -> None:
         """Set thermostat mode"""

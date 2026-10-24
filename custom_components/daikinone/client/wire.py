@@ -35,12 +35,12 @@ DAIKIN_API_URL_DEVICE_DATA = urljoin(DAIKIN_API_URL_BASE, "/deviceData")
 
 class DaikinDeviceDataResponse(BaseModel):
     id: str
-    locationId: str
     name: str
-    model: str
-    firmware: str
     online: bool
     data: dict[str, Any]
+    locationId: str = ""
+    model: str = ""
+    firmware: str = ""
 
 
 # --- Sentinels ---
