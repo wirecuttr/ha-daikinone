@@ -34,49 +34,44 @@ This release establishes the modern communicating heat pump, dual-fuel, and diag
 * **Dual-Fuel Priority Preference (`select.<thermostat>_dual_fuel_priority`):** Added select entity allowing switching between `Comfort` and `Efficiency` heating priorities (`dualFuelPreference`).
   - *Upstream PR:* [zlangbert/ha-daikinone#138](https://github.com/zlangbert/ha-daikinone/pull/138) (Submitted & Open)
 
-#### 2. Operating State & Live Fuel Source Detection
-* **Operating State Sensor (`sensor.<thermostat>_operating_state`):** Exposes a 12-state operating sensor reporting the physical HVAC operating state (`idle`, `heating`, `cooling`, `aux_heating`, `circulating`, etc.).
-* **Active Fuel Detection:** Attributes provide live telemetry on the active energy source (`Gas`, `Electric`, or `None`) by analyzing equipment staging and outdoor temperature relative to the balance point.
-  - *Branch:* [`feature/operating-state-sensor`](https://github.com/wirecuttr/ha-daikinone/tree/feature/operating-state-sensor)
-
-#### 3. Fan Circulation Scheduling & Night Mode
+#### 2. Fan Circulation Scheduling & Night Mode
 * **Fan Circulation Schedule:** Added native time entities (`time.<thermostat>_fan_circulation_start_time`, `time.<thermostat>_fan_circulation_end_time`) and select entity (`select.<thermostat>_fan_circulation_duty_cycle`) to configure quiet fan circulation schedules and duty cycles without cloud app dependence.
 * **Thermostat Night Mode:** Added `switch.<thermostat>_night_mode` and schedule interval controls (`time.<thermostat>_night_mode_start_time`, `time.<thermostat>_night_mode_end_time`) to dim display backlights and enforce silent night operation.
   - *Upstream PR:* [zlangbert/ha-daikinone#141](https://github.com/zlangbert/ha-daikinone/pull/141) (Submitted & Open)
 
-#### 4. Diagnostic Faults & Error History Tracking
+#### 3. Diagnostic Faults & Error History Tracking
 * **Equipment & System Error Sensors:** Exposes `sensor.<thermostat>_last_equipment_error` (`fault1`–`fault25`) and `sensor.<thermostat>_last_system_error` (`sysFault1`–`sysFault20`) using `SensorDeviceClass.TIMESTAMP`.
 * **Empirical Diagnostic Mapping:** Validates 2-character uppercase hex codes (`latest_code`), criticality severity levels, equipment IDs, and filters out pre-NTP boot records (`Date == 22`). Exposes the top 3 newest errors in `recent_errors` attributes alongside physical thermostat navigation action prompts.
   - *Upstream PR:* [zlangbert/ha-daikinone#143](https://github.com/zlangbert/ha-daikinone/pull/143) (Submitted & Open)
 
-#### 5. HVAC Consumables & Maintenance Alerts
+#### 4. HVAC Consumables & Maintenance Alerts
 * **Consumable Life Sensors:** Added remaining life percentage sensors (`sensor.<thermostat>_media_air_filter_life`, `sensor.<thermostat>_service_inspection_life`) with detailed usage attributes (`days_remaining`, `runtime_hours_used`).
 * **Diagnostic Problem Sensors:** Added `binary_sensor.<thermostat>_media_air_filter_replacement` and `binary_sensor.<thermostat>_service_inspection_due` (`device_class: problem`).
 * **Two-Tier Hardware Guards:** Hardware inventory checks (`NumMediafilters`, `NumUVBulbs`, etc.) and configured threshold checks (`alert*Limit > 0`) guarantee 0 ghost entities on unsupported units.
   - *Upstream PR:* [zlangbert/ha-daikinone#142](https://github.com/zlangbert/ha-daikinone/pull/142) (Submitted & Open)
 
-#### 6. Emergency Heat Switch & Native Away Mode Preset
+#### 5. Emergency Heat Switch & Native Away Mode Preset
 * **Emergency Heat Decoupling:** Implemented dedicated `switch.<thermostat>_emergency_heat` (`DaikinThermostatMode.AUX_HEAT`), aligning with modern Home Assistant core architecture (RFC #932) and eliminating preset conflicts in sub-zero winter climates.
 * **Native Away Preset:** Configured `preset_mode: away` on `climate.<thermostat>` using `geofencingAway`.
 * **AC-Only Guard:** Gated with `modeEmHeatAvailable` to prevent phantom entities on cooling-only hardware (resolves upstream Issue #25).
   - *Related Discussions:* [Issue #123 Comment](https://github.com/zlangbert/ha-daikinone/issues/123#issuecomment-6324305522), [PR #131 Review](https://github.com/zlangbert/ha-daikinone/pull/131#issuecomment-6324426484)
   - *Branch:* [`feature/emergency-heat-switch-and-away-preset`](https://github.com/wirecuttr/ha-daikinone/tree/feature/emergency-heat-switch-and-away-preset)
 
-#### 7. OneClean Air Scrub Switch
+#### 6. OneClean Air Scrub Switch
 * Added `switch.<thermostat>_one_clean_fan` allowing 3-hour high-speed air purification cycles.
   - *Upstream Reference:* Adopted and refined from [zlangbert/ha-daikinone#124](https://github.com/zlangbert/ha-daikinone/pull/124).
 
-#### 8. Schedule Control
+#### 7. Schedule Control
 * Added `button.<thermostat>_resume_schedule` to dismiss temporary hold overrides and `switch.<thermostat>_schedule` to toggle schedule execution.
   - *Upstream PR:* [zlangbert/ha-daikinone#137](https://github.com/zlangbert/ha-daikinone/pull/137) (Submitted & Open)
 
-#### 9. Native Thermostat & Equipment Availability Cascade
+#### 8. Native Thermostat & Equipment Availability Cascade
 * **Availability Architecture (`_is_device_available` / `is_device_online`):** Entities across all platforms (`climate`, `sensor`, `binary_sensor`, `switch`, `select`, `number`, `time`, `button`) now dynamically track hardware reachability instead of remaining hardcoded to available. Subordinate equipment entities (furnaces, heat pumps, coils) automatically inherit parent thermostat online status.
 * **Empty Offline Payload Trap Fixed:** Fixed coordinator bug where thermostats reporting offline with empty telemetry payloads (`online: false, data: {}`) during power outages or network interruptions were skipped, retaining stale cached data. Thermostats are now properly marked offline.
 * **Diagnostic Connectivity Tracking:** Added and refined dynamic device reachability tracking and diagnostic connectivity (`binary_sensor.<thermostat>_connectivity` / `sensor.<thermostat>_online_status`), which remains available during outages to cleanly display `Offline` instead of transitioning to an ambiguous `Unavailable` state. Enabled state polling on `button.<thermostat>_resume_schedule` to track availability.
   - *Branch:* [`feature/thermostat-connectivity`](https://github.com/wirecuttr/ha-daikinone/tree/feature/thermostat-connectivity)
 
-#### 10. Skyport Location Support & 3-Tier Device Hierarchy
+#### 9. Skyport Location Support & 3-Tier Device Hierarchy
 * **Manifest Modernization (`integration_type: hub`):** Declared integration type as `hub` in `manifest.json`, standardizing Home Assistant settings under the `Hubs` header.
 * **Property Location Hub Devices:** Supports Daikin Skyport property locations (`/locations`). Registers each property as a parent Location Hub device (`entry_type: DeviceEntryType.SERVICE`, `model: "Skyport Location"`). Thermostats declare `via_device` pointing to their parent Location Hub, and child equipment points to the thermostat, establishing a clean 3-tier device hierarchy (`Location Hub -> Thermostat -> HVAC Equipment`).
 * **Dynamic Config Entry Title:** Automatically names config entries using the primary location name (e.g. `Home`), with in-place migration for existing installations.

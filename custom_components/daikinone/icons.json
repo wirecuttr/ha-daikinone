@@ -18,23 +18,6 @@
       }
     },
     "sensor": {
-      "operating_state": {
-        "default": "mdi:thermostat",
-        "state": {
-          "gas_heating": "mdi:fire",
-          "heat_pump_heating": "mdi:heat-pump",
-          "electric_heating": "mdi:radiator",
-          "emergency_heating": "mdi:fire-alert",
-          "heating_startup": "mdi:progress-clock",
-          "heating": "mdi:fire",
-          "cooling": "mdi:snowflake",
-          "drying": "mdi:water-percent",
-          "defrost": "mdi:snowflake-melt",
-          "fan_only": "mdi:fan",
-          "idle": "mdi:thermostat",
-          "off": "mdi:power-off"
-        }
-      },
       "media_air_filter_life": {
         "default": "mdi:air-filter"
       },

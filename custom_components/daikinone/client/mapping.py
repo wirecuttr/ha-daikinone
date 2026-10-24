@@ -15,7 +15,6 @@ from custom_components.daikinone.client.models import (
     DaikinLocation,
     DaikinOneAirQualitySensorIndoor,
     DaikinOneAirQualitySensorOutdoor,
-    DaikinOperatingState,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
@@ -494,88 +493,6 @@ def _map_eev_coil(payload: DaikinDeviceDataResponse) -> DaikinEEVCoil | None:
         liquid_temperature=read(payload.data, f.F_EEV_SUBCOOL_TEMP),
         suction_temperature=read(payload.data, f.F_EEV_SUCTION_TEMP),
     )
-
-
-def determine_operating_state(thermostat: DaikinThermostat) -> tuple[str, str | None]:
-    """Determine the operating state and fuel type matching physical on-wall unit."""
-    if thermostat.mode == DaikinThermostatMode.OFF:
-        return DaikinOperatingState.OFF.value, None
-
-    if thermostat.status == DaikinThermostatStatus.IDLE:
-        return DaikinOperatingState.IDLE.value, None
-
-    if thermostat.status == DaikinThermostatStatus.COOLING:
-        return DaikinOperatingState.COOLING.value, "electric"
-
-    if thermostat.status == DaikinThermostatStatus.DRYING:
-        return DaikinOperatingState.DRYING.value, "electric"
-
-    if thermostat.status == DaikinThermostatStatus.CIRCULATING_AIR:
-        return DaikinOperatingState.FAN_ONLY.value, None
-
-    if thermostat.status == DaikinThermostatStatus.HEATING:
-        outdoor: DaikinOutdoorUnit | None = next(
-            (e for e in thermostat.equipment.values() if isinstance(e, DaikinOutdoorUnit)),
-            None,
-        )
-        furnace: DaikinIndoorUnit | None = next(
-            (e for e in thermostat.equipment.values() if isinstance(e, DaikinIndoorUnit) and e.name == "Furnace"),
-            None,
-        )
-        air_handler: DaikinIndoorUnit | None = next(
-            (e for e in thermostat.equipment.values() if isinstance(e, DaikinIndoorUnit) and e.name == "Air Handler"),
-            None,
-        )
-        indoor: DaikinIndoorUnit | None = (
-            furnace
-            or air_handler
-            or next(
-                (e for e in thermostat.equipment.values() if isinstance(e, DaikinIndoorUnit)),
-                None,
-            )
-        )
-
-        # 1. Defrost cycle takes priority over tempering auxiliary heat
-        if outdoor is not None and outdoor.mode and outdoor.mode.lower() == "defrost":
-            return DaikinOperatingState.DEFROST.value, "electric"
-
-        # 2. Emergency mode (user forced AUX_HEAT) while heating call active
-        if thermostat.mode == DaikinThermostatMode.AUX_HEAT:
-            fuel = "gas" if furnace is not None else "electric"
-            return DaikinOperatingState.EMERGENCY_HEATING.value, fuel
-
-        # 3. Gas furnace actively firing strictly overrides heat pump Mode 12 spin-down
-        if furnace is not None and (furnace.heat_demand_current_percent or 0) > 0:
-            return DaikinOperatingState.GAS_HEATING.value, "gas"
-
-        is_decel = (outdoor is not None and outdoor.mode is not None and outdoor.mode.lower() == "decel") or (
-            outdoor is not None and outdoor.operation_mode == 12
-        )
-        hp_running = (
-            outdoor is not None
-            and (outdoor.heat_demand_percent or 0) > 0
-            and (outdoor.compressor_speed_current or 0) > 0
-            and indoor is not None
-            and (indoor.current_airflow or 0) > 0
-            and not is_decel
-        )
-
-        # 4. Air handler electric heat strips active while compressor idle
-        if air_handler is not None and (air_handler.heat_demand_current_percent or 0) > 0 and not hp_running:
-            return DaikinOperatingState.ELECTRIC_HEATING.value, "electric"
-
-        # 5. Inverter heat pump actively delivering heat (including supplemental heat with electric strips)
-        if hp_running:
-            return DaikinOperatingState.HEAT_PUMP_HEATING.value, "electric"
-
-        # 6. Communicating equipment present but heat delivery not yet proven (warm-up / pre-heat delay)
-        if outdoor is not None or indoor is not None:
-            return DaikinOperatingState.HEATING_STARTUP.value, None
-
-        # 7. Non-communicating fallback (sub-equipment loads unavailable)
-        return DaikinOperatingState.HEATING.value, None
-
-    return DaikinOperatingState.IDLE.value, None
 
 
 def map_location(response: DaikinLocationResponse) -> DaikinLocation:

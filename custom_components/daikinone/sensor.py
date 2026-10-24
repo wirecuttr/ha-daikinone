@@ -24,13 +24,11 @@ from homeassistant.helpers.typing import StateType
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.entity import DaikinOneEntity
-from custom_components.daikinone.client.mapping import determine_operating_state
 from custom_components.daikinone.client.models import (
     DaikinDevice,
     DaikinEEVCoil,
     DaikinEquipment,
     DaikinIndoorUnit,
-    DaikinOperatingState,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
@@ -206,18 +204,6 @@ async def async_setup_entry(
         # thermostat sensors
 
         entities += [
-            DaikinOneOperatingStateSensor(
-                description=SensorEntityDescription(
-                    key="operating_state",
-                    name="Operating state",
-                    has_entity_name=True,
-                    device_class=SensorDeviceClass.ENUM,
-                    options=[s.value for s in DaikinOperatingState],
-                    translation_key="operating_state",
-                ),
-                data=data,
-                device=thermostat,
-            ),
             DaikinOneThermostatSensor(
                 description=SensorEntityDescription(
                     key="online",
@@ -1166,29 +1152,6 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
 
     def update_entity_attributes(self) -> None:
         self._attr_native_value = self._attribute(self._device)
-
-
-class DaikinOneOperatingStateSensor(DaikinOneThermostatSensor):
-    """Sensor tracking operating state matching wall unit."""
-
-    def __init__(
-        self,
-        description: SensorEntityDescription,
-        data: DaikinOneData,
-        device: DaikinThermostat,
-    ) -> None:
-        super().__init__(
-            description,
-            data,
-            device,
-            attribute=lambda t: determine_operating_state(t)[0],
-        )
-        self.update_entity_attributes()
-
-    def update_entity_attributes(self) -> None:
-        state, fuel = determine_operating_state(self._device)
-        self._attr_native_value = state
-        self._attr_extra_state_attributes = {"fuel_type": fuel} if fuel is not None else {}
 
 
 class DaikinOneEquipmentErrorHistorySensor(DaikinOneThermostatSensor):
