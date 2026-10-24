@@ -459,6 +459,9 @@ async def _async_handle_set_schedule(call: ServiceCall) -> None:
 
 def async_register_services(hass: HomeAssistant) -> None:
     """Register Daikin One schedule services if not already registered."""
+    if not hasattr(hass, "services") or hass.services is None:
+        return
+
     if not hass.services.has_service(DOMAIN, SERVICE_GET_SCHEDULE):
         hass.services.async_register(
             DOMAIN,
@@ -479,6 +482,9 @@ def async_register_services(hass: HomeAssistant) -> None:
 
 def async_unregister_services(hass: HomeAssistant) -> None:
     """Unregister Daikin One schedule services when the last config entry is unloaded."""
+    if not hasattr(hass, "services") or hass.services is None:
+        return
+
     if hass.services.has_service(DOMAIN, SERVICE_GET_SCHEDULE):
         hass.services.async_remove(DOMAIN, SERVICE_GET_SCHEDULE)
     if hass.services.has_service(DOMAIN, SERVICE_SET_SCHEDULE):
