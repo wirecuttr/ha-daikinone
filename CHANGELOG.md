@@ -7,6 +7,43 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.MM
 
 ---
 
+## [2026.10.1] - 2026-10-24
+
+### Overview
+This release adds the 7-day cloud schedule service layer, native defrost/preheating HVAC actions, a dedicated active heat source sensor, schedule hold status entities, and outdoor unit inverter quiet mode controls.
+
+* **Test Suite:** Expanded to **360 automated unit tests** (100% pass rate).
+* **Upstream PRs:** All features submitted as clean independent PRs to upstream ([#145](https://github.com/zlangbert/ha-daikinone/pull/145), [#146](https://github.com/zlangbert/ha-daikinone/pull/146), [#147](https://github.com/zlangbert/ha-daikinone/pull/147), [#148](https://github.com/zlangbert/ha-daikinone/pull/148)).
+
+---
+
+### Breaking Changes
+* **Obsolete Operating State Sensor Purged:**  
+  The experimental synthetic `sensor.<thermostat>_operating_state` has been cleanly removed and replaced by native Home Assistant HVAC actions on the `climate` entity and the dedicated `sensor.<thermostat>_heat_source` enum sensor.
+
+---
+
+### Features & Enhancements
+
+#### 1. 7-Day Cloud Schedule Service Layer
+* **`daikinone.get_schedule` (`SupportsResponse.ONLY`):** Fetches the full 7-day x 6-period schedule matrix directly from cached memory (<5ms, zero cloud network round-trip and zero SQLite recorder bloat) with temperature conversion to system units.
+* **`daikinone.set_schedule`:** Validates and executes single atomic batch updates across any subset of days and periods, enforcing hardware temperature limits and minimum deadband separation with optimistic state updates.
+* Compatible with the standalone [`custom:daikin-schedule-card`](https://github.com/wirecuttr/daikin-schedule-card) Lovelace card.
+
+#### 2. Native Climate Actions & Heat Source Sensor
+* **Native Defrost & Preheat States (`hvac_action`):** The `climate` entity now natively reports `HVACAction.DEFROSTING` during outdoor coil defrost cycles and `HVACAction.PREHEATING` during heating startup.
+* **Dedicated Heat Source Sensor (`sensor.<thermostat>_heat_source`):** Strongly typed `SensorDeviceClass.ENUM` sensor reporting the active heat energy source (`none`, `heat_pump`, `gas`, `resistive`).
+
+#### 3. Schedule Hold Status & Override Resume Time
+* **Schedule Status Sensor (`sensor.<thermostat>_schedule_status`):** Reports schedule state (`using_schedule`, `temporary_hold`, `permanent_hold`) with dynamic calendar icons.
+* **Schedule Resume Time Sensor (`sensor.<thermostat>_schedule_resume_time`):** `SensorDeviceClass.TIMESTAMP` sensor indicating when temporary setpoint overrides expire.
+
+#### 4. Outdoor Unit Inverter Quiet Mode
+* **Quiet Mode Switch (`switch.<thermostat>_quiet_mode`):** Enables outdoor unit inverter sound-capping schedule with live execution status reported in `quiet_mode_active` extra state attribute.
+* **Quiet Mode Window Times:** `time.<thermostat>_quiet_mode_start_time` and `time.<thermostat>_quiet_mode_stop_time` configure daily sound mitigation windows.
+
+---
+
 ## [2026.10.0] - 2026-10-24
 
 ### Overview
