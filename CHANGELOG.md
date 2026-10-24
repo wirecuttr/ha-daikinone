@@ -86,7 +86,7 @@ If you are switching from the upstream `zlangbert/ha-daikinone` repository:
 2. Click on the existing **Daikin One** repository card.
 3. Click the three dots in the top right corner and select **Remove**.
 4. **Ignore the warning** prompting you to delete the configured integration from Settings $\rightarrow$ Devices & Services first. (Your configured thermostats, entity IDs, automations, and historical statistics will remain completely safe in Home Assistant Core).
-5. Confirm the removal on the dialog.
+5. Confirm the removal on the next dialog.
 6. In HACS, click the three dots in the top right corner $\rightarrow$ select **Custom repositories**.
 7. Add your repository:
    - **Repository:** `https://github.com/wirecuttr/ha-daikinone`
