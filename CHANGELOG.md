@@ -80,10 +80,16 @@ This release establishes the modern communicating heat pump, dual-fuel, and diag
 
 ### Installation via HACS
 
+If you are switching from the upstream `zlangbert/ha-daikinone` repository:
+
 1. In Home Assistant, open **HACS** $\rightarrow$ **Integrations**.
-2. Click the three dots in the top right corner and select **Custom repositories**.
-3. Add repository:
+2. Click on the existing **Daikin One** repository card.
+3. Click the three dots in the top right corner and select **Remove**.
+4. **Ignore the warning** prompting you to delete the configured integration from Settings $\rightarrow$ Devices & Services first. (Your configured thermostats, entity IDs, automations, and historical statistics will remain completely safe in Home Assistant Core).
+5. Confirm the removal on the dialog.
+6. In HACS, click the three dots in the top right corner $\rightarrow$ select **Custom repositories**.
+7. Add your repository:
    - **Repository:** `https://github.com/wirecuttr/ha-daikinone`
    - **Category:** `Integration`
-4. Click **Add**, find **Daikin One**, and click **Download**.
-5. Restart Home Assistant.
+8. Click **Add**, search for **Daikin One**, and click **Download** (version `2026.10.0`).
+9. Restart Home Assistant Core. All existing entities will automatically link to the new release alongside all new entities.
