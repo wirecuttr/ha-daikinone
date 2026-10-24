@@ -129,3 +129,7 @@ If you are switching from the upstream `zlangbert/ha-daikinone` repository:
    - **Category:** `Integration`
 8. Click **Add**, search for **Daikin One**, and click **Download** (version `2026.10.0`).
 9. Restart Home Assistant Core. All existing entities will automatically link to the new release alongside all new entities.
+
+---
+
+*Co-developed and hardware-tested with Google DeepMind Antigravity.*
