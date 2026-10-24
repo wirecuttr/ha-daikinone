@@ -253,7 +253,6 @@ async def _async_handle_get_schedule(call: ServiceCall) -> ServiceResponse:
         "thermostat_id": thermostat.id,
         "name": thermostat.name,
         "schedule_enabled": schedule.enabled,
-        "schedule_override": schedule.override,
         "temperature_unit": unit,
         "min_temp": min_bound,
         "max_temp": max_bound,

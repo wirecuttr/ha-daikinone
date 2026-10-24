@@ -111,7 +111,7 @@ class TestGetScheduleService:
         assert response["thermostat_id"] == "3edbb7b4-7237-11ec-a442-473204fe7b80"
         assert response["name"] == "MainFloor"
         assert response["schedule_enabled"] is True
-        assert response["schedule_override"] is False
+        assert "schedule_override" not in response
         assert response["temperature_unit"] == UnitOfTemperature.CELSIUS
         assert response["min_temp"] == 10.0
         assert response["max_temp"] == 32.2
