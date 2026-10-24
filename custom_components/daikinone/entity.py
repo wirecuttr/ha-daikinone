@@ -76,6 +76,28 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
         """Update the entity attributes. When this is called, the device has already been updated."""
         raise NotImplementedError("DaikinOneEntity subclass has not implemented update_entity_attributes")
 
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return super().available and self.is_device_online
+
+    @property
+    def is_device_online(self) -> bool:
+        """Return online status of the underlying device or parent thermostat."""
+        match self._device:
+            case DaikinThermostat():
+                return bool(self._device.online)
+            case DaikinEquipment():
+                try:
+                    thermostat = self._data.daikin.get_thermostat(self._device.thermostat_id)
+                    return bool(thermostat.online)
+                except KeyError:
+                    return False
+            case _:
+                if hasattr(self._device, "online"):
+                    return bool(getattr(self._device, "online"))
+                return True
+
     async def async_update(self, no_throttle: bool = False) -> None:
         """Gets the latest state of the entity."""
         if self._updates_paused:
@@ -93,7 +115,8 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
             self._attr_available = False
             return
 
-        self._attr_available = True
+        if not self._attr_available:
+            self._attr_available = True
         self.update_entity_attributes()
 
     async def update_state_optimistically(

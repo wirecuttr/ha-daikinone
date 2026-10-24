@@ -1151,6 +1151,13 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
             case _:
                 raise ValueError("unexpected entity uid schema version")
 
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        if self.entity_description.key == "online":
+            return self._attr_available
+        return super().available
+
     async def async_get_device(self) -> DaikinThermostat:
         return self._data.daikin.get_thermostat(self._device.id)
 

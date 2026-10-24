@@ -321,7 +321,6 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         return self._data.daikin.get_thermostat(self._device.id)
 
     def update_entity_attributes(self) -> None:
-        self._attr_available = self._device.online
         self._attr_current_temperature = (
             self._device.indoor_temperature.celsius if self._device.indoor_temperature else None
         )

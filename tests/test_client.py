@@ -203,6 +203,80 @@ class TestUnsupportedDeviceHandling:
             )
 
 
+class TestOfflineDeviceHandling:
+    async def test_offline_device_with_empty_data_marks_cached_thermostat_offline(
+        self, daikin_client: DaikinOne, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Verify that an offline device payload with empty data sets online=False on the cached thermostat."""
+        valid_dev = _make_device()
+        valid_dev["id"] = "device123"
+        valid_dev["name"] = "MainFloor"
+
+        offline_empty_dev = {
+            "id": "device123",
+            "name": "MainFloor",
+            "online": False,
+            "data": {},
+        }
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            # First poll: device is online with full data
+            mock_req.return_value = [valid_dev]
+            await daikin_client.update()
+
+            thermostat = daikin_client.get_thermostat("device123")
+            assert thermostat.online is True
+            assert thermostat.name == "MainFloor"
+            assert thermostat.indoor_temperature is not None
+
+            # Second poll: device reports offline with empty data (power cut / outage)
+            mock_req.return_value = [offline_empty_dev]
+            with caplog.at_level(logging.WARNING):
+                await daikin_client.update()
+
+            # Thermostat must remain cached, but with online=False
+            updated_thermostat = daikin_client.get_thermostat("device123")
+            assert updated_thermostat.online is False
+            # Previous attributes (indoor_temperature, equipment, etc.) should be preserved from cache
+            assert updated_thermostat.name == "MainFloor"
+            assert updated_thermostat.indoor_temperature == thermostat.indoor_temperature
+
+            # Warning should be logged
+            assert any(
+                "Device MainFloor (device123) reported offline with no data" in r.message for r in caplog.records
+            )
+
+    async def test_offline_device_not_previously_cached_does_not_crash(
+        self, daikin_client: DaikinOne, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Verify that an offline device with empty data not previously in cache is skipped cleanly."""
+        offline_empty_dev = {
+            "id": "unknown_device",
+            "name": "Unknown",
+            "online": False,
+            "data": {},
+        }
+
+        with (
+            caplog.at_level(logging.WARNING),
+            patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req,
+        ):
+            mock_req.return_value = [offline_empty_dev]
+            await daikin_client.update()
+
+        assert "unknown_device" not in daikin_client.get_thermostats()
+        assert any("Device Unknown (unknown_device) reported offline with no data" in r.message for r in caplog.records)
+
+    async def test_thermostats_property_returns_cached_thermostats(self, daikin_client: DaikinOne) -> None:
+        """Verify thermostats property returns a copy of cached thermostats."""
+        valid_dev = _make_device()
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [valid_dev]
+            await daikin_client.update()
+
+        assert "device123" in daikin_client.thermostats
+
+
 @pytest.mark.parametrize(
     ("method", "value", "key"),
     [
