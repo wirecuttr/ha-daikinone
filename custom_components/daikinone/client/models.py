@@ -350,6 +350,11 @@ class DaikinThermostat(DaikinDevice):
     night_mode_start: int | None = None
     night_mode_stop: int | None = None
     night_mode_light_bar_allowed: bool | None = None
+    quiet_mode_enabled: bool | None = None
+    quiet_mode_active: bool | None = None
+    quiet_mode_start_time: int | None = None
+    quiet_mode_stop_time: int | None = None
+    quiet_mode_ho_display_enable: bool | None = None
     aux_heat_lockout_temp: float | None = None
 
     num_media_filters: int | None = None

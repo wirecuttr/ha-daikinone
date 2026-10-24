@@ -19,6 +19,8 @@ from custom_components.daikinone.time import (
     DaikinOneFanCirculationStopTime,
     DaikinOneNightModeStartTime,
     DaikinOneNightModeStopTime,
+    DaikinOneQuietModeStartTime,
+    DaikinOneQuietModeStopTime,
     _slot_to_time,
     _time_to_slot,
     async_setup_entry,
@@ -42,6 +44,8 @@ def _data(thermostat: DaikinThermostat, schema: int = 1) -> DaikinOneData:
         "set_thermostat_fan_circulate_stop",
         "set_thermostat_night_mode_start",
         "set_thermostat_night_mode_stop",
+        "set_thermostat_quiet_mode_start_time",
+        "set_thermostat_quiet_mode_stop_time",
     ):
         getattr(daikin, method).return_value = None
     return DaikinOneData(_hass=None, entry=entry, daikin=daikin)  # type: ignore[arg-type]
@@ -65,6 +69,8 @@ def test_slot_conversions_and_invalid_slots() -> None:
         ("fan_circulate_stop", DaikinOneFanCirculationStopTime, 92, 1),
         ("night_mode_start", DaikinOneNightModeStartTime, 88, 0),
         ("night_mode_stop", DaikinOneNightModeStopTime, 28, 1),
+        ("quiet_mode_start_time", DaikinOneQuietModeStartTime, 88, 0),
+        ("quiet_mode_stop_time", DaikinOneQuietModeStopTime, 28, 1),
     ],
 )
 def test_time_entity_value_and_metadata(field: str, entity_type: type[TimeEntity], slot: int, schema: int) -> None:
@@ -73,12 +79,17 @@ def test_time_entity_value_and_metadata(field: str, entity_type: type[TimeEntity
         "fan_circulate_stop": "fan_circulation_stop",
         "night_mode_start": "night_mode_start",
         "night_mode_stop": "night_mode_stop",
+        "quiet_mode_start_time": "quiet_mode_start_time",
+        "quiet_mode_stop_time": "quiet_mode_stop_time",
     }[field]
     thermostat = _thermostat(
         fanCirculateStart=4,
         fanCirculateStop=92,
         nightModeStart=88,
         nightModeStop=28,
+        ctQuietModeHODisplayEnable=True,
+        quietModeStartTime=88,
+        quietModeStopTime=28,
     )
     entity = entity_type(
         description=SimpleNamespace(key=key, name=key, icon=None, has_entity_name=True, entity_category=None),
@@ -205,3 +216,92 @@ async def test_optimistic_update_resumes_after_api_failure() -> None:
         )
 
     assert entity._updates_paused is False
+
+
+@pytest.mark.asyncio
+async def test_setup_quiet_mode_time_gating() -> None:
+    valid = _thermostat(
+        ctQuietModeHODisplayEnable=True,
+        quietModeStartTime=88,
+        quietModeStopTime=28,
+    )
+    ho_disabled = _thermostat(
+        ctQuietModeHODisplayEnable=False,
+        quietModeStartTime=88,
+        quietModeStopTime=28,
+    )
+    incomplete = _thermostat(
+        ctQuietModeHODisplayEnable=True,
+        quietModeStartTime=88,
+        quietModeStopTime=255,
+    )
+    data = _data(valid)
+    data.daikin.get_thermostats.return_value = {
+        "valid": valid,
+        "ho_disabled": ho_disabled,
+        "incomplete": incomplete,
+    }
+    entities: list[TimeEntity] = []
+
+    await async_setup_entry(
+        SimpleNamespace(data={DOMAIN: data}),  # type: ignore[arg-type]
+        data.entry,
+        lambda added, update_before_add=False: entities.extend(added),
+    )
+
+    quiet_entities = [e for e in entities if isinstance(e, (DaikinOneQuietModeStartTime, DaikinOneQuietModeStopTime))]
+    assert len(quiet_entities) == 2
+    assert {e.entity_description.key for e in quiet_entities} == {
+        "quiet_mode_start_time",
+        "quiet_mode_stop_time",
+    }
+    assert all(e.entity_category is EntityCategory.CONFIG for e in quiet_entities)
+
+
+@pytest.mark.asyncio
+async def test_quiet_mode_time_writes_optimistic_update() -> None:
+    thermostat = _thermostat(
+        ctQuietModeHODisplayEnable=True,
+        quietModeStartTime=88,
+        quietModeStopTime=28,
+    )
+    data = _data(thermostat)
+    start_entity = DaikinOneQuietModeStartTime(
+        description=SimpleNamespace(
+            key="quiet_mode_start_time",
+            name="Quiet mode start time",
+            icon="mdi:clock-start",
+            has_entity_name=True,
+            entity_category=EntityCategory.CONFIG,
+        ),
+        data=data,
+        thermostat=thermostat,
+    )
+    start_entity.update_state_optimistically = AsyncMock()  # type: ignore[method-assign]
+
+    await start_entity.async_set_value(datetime.time(22, 0))
+    operation = start_entity.update_state_optimistically.await_args.kwargs["operation"]
+    await operation()
+    data.daikin.set_thermostat_quiet_mode_start_time.assert_awaited_once_with("device123", 88)
+    start_entity.update_state_optimistically.await_args.kwargs["optimistic_update"](thermostat)
+    assert thermostat.quiet_mode_start_time == 88
+
+    stop_entity = DaikinOneQuietModeStopTime(
+        description=SimpleNamespace(
+            key="quiet_mode_stop_time",
+            name="Quiet mode stop time",
+            icon="mdi:clock-end",
+            has_entity_name=True,
+            entity_category=EntityCategory.CONFIG,
+        ),
+        data=data,
+        thermostat=thermostat,
+    )
+    stop_entity.update_state_optimistically = AsyncMock()  # type: ignore[method-assign]
+
+    await stop_entity.async_set_value(datetime.time(7, 0))
+    operation = stop_entity.update_state_optimistically.await_args.kwargs["operation"]
+    await operation()
+    data.daikin.set_thermostat_quiet_mode_stop_time.assert_awaited_once_with("device123", 28)
+    stop_entity.update_state_optimistically.await_args.kwargs["optimistic_update"](thermostat)
+    assert thermostat.quiet_mode_stop_time == 28

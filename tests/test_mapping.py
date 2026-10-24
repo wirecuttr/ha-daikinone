@@ -405,6 +405,66 @@ class TestFanCirculationAndNightModeMapping:
         assert thermostat.night_mode_light_bar_allowed is None
 
 
+class TestQuietModeMapping:
+    async def test_quiet_mode_fields_map_when_present(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "ctOutdoorQuietModeEnabled": 1,
+                "quietModeActive": 0,
+                "quietModeStartTime": 88,
+                "quietModeStopTime": 28,
+                "ctQuietModeHODisplayEnable": True,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.quiet_mode_enabled is True
+        assert thermostat.quiet_mode_active is False
+        assert thermostat.quiet_mode_start_time == 88
+        assert thermostat.quiet_mode_stop_time == 28
+        assert thermostat.quiet_mode_ho_display_enable is True
+
+    async def test_quiet_mode_fields_are_none_when_absent(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [_make_device()]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.quiet_mode_enabled is None
+        assert thermostat.quiet_mode_active is None
+        assert thermostat.quiet_mode_start_time is None
+        assert thermostat.quiet_mode_stop_time is None
+        assert thermostat.quiet_mode_ho_display_enable is None
+
+    async def test_sentinel_quiet_mode_values_are_treated_as_unavailable(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "ctOutdoorQuietModeEnabled": 255,
+                "quietModeActive": 255,
+                "quietModeStartTime": 255,
+                "quietModeStopTime": 65535,
+                "ctQuietModeHODisplayEnable": 255,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.quiet_mode_enabled is None
+        assert thermostat.quiet_mode_active is None
+        assert thermostat.quiet_mode_start_time is None
+        assert thermostat.quiet_mode_stop_time is None
+        assert thermostat.quiet_mode_ho_display_enable is None
+
+
 class TestEquipmentSkippedOnInvalidIdentity:
     """When a wire identity string (model, serial) sanitizes to None, the equipment is
     omitted from the thermostat's equipment dict rather than registered under a synthetic
