@@ -81,21 +81,36 @@ This release establishes the modern communicating heat pump, dual-fuel, and diag
 * **Property Location Hub Devices:** Supports Daikin Skyport property locations (`/locations`). Registers each property as a parent Location Hub device (`entry_type: DeviceEntryType.SERVICE`, `model: "Skyport Location"`). Thermostats declare `via_device` pointing to their parent Location Hub, and child equipment points to the thermostat, establishing a clean 3-tier device hierarchy (`Location Hub -> Thermostat -> HVAC Equipment`).
 * **Dynamic Config Entry Title:** Automatically names config entries using the primary location name (e.g. `Home`), with in-place migration for existing installations.
 * **Empty Location Filtering & Defensive Address Parsing:** Safely decodes inner-JSON address payloads with plain-text fallback, while filtering out unpopulated properties without active thermostats to prevent ghost hub devices.
+  - *Upstream PR:* [zlangbert/ha-daikinone#144](https://github.com/zlangbert/ha-daikinone/pull/144) (Submitted & Open)
   - *Branch:* [`feature/location-device-hierarchy`](https://github.com/wirecuttr/ha-daikinone/tree/feature/location-device-hierarchy)
+
+#### 11. EPA 6-Tier AQI Standard & Resilient Fallback
+* **Standardized 6-Tier Scale:** Reconciled indoor air quality mapping with the official EPA AirNow 6-tier standard (0–5: Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, Hazardous), eliminating truncated index errors.
+* **Defensive Fallback & Localization:** Added `_missing_ = UNKNOWN` fallback for undefined air quality levels and complete string translations for all tiers.
+  - *Upstream Reference:* Reconciles unmerged upstream PRs [zlangbert/ha-daikinone#126](https://github.com/zlangbert/ha-daikinone/pull/126) and [#127](https://github.com/zlangbert/ha-daikinone/pull/127).
+
+#### 12. Multi-Equipment Sub-Device Registry Scoping
+* **Furnace & Multi-Split Device Collision Fix:** Fixed long-standing upstream bug where multi-furnace or multi-split systems collided on device identifiers in Home Assistant's device registry. Scopes device identifiers with parent `thermostat_id`, allowing each indoor air handler, furnace, coil, and outdoor compressor to register as a separate linked device.
+  - *Upstream PR:* [zlangbert/ha-daikinone#136](https://github.com/zlangbert/ha-daikinone/pull/136) (Submitted & Open; addresses upstream Issue #135).
+
+#### 13. Auth Self-Healing & Transport Resiliency
+* **Lock Ladder & Auto Token Re-Negotiation:** Implemented an `asyncio.Lock` ladder in `client/transport.py` to serialize authentication across concurrent entity polls and automatically re-negotiate expired tokens on HTTP 401/403 responses.
+* **Transient Setup Retry:** Maps network timeouts and 5xx gateway errors to `ConfigEntryNotReady` for Home Assistant automatic backoff retries instead of failing permanently.
+* **Config Flow Reauthentication:** Implemented native reauth flow (`async_step_reauth` / `async_step_reauth_confirm`) allowing users to update changed credentials in-place.
+  - *Upstream Reference:* Adopted and hardened from unmerged upstream PR [zlangbert/ha-daikinone#129](https://github.com/zlangbert/ha-daikinone/pull/129) (addresses upstream Issue #128).
+
+#### 14. Defensive Ingestion for Unsupported Devices
+* **Schema Variation Hardening:** Traps schema variations (`KeyError`, `ValueError`, `TypeError`) when ingesting unusual or legacy Daikin hardware models without crashing integration setup.
+* **Deduplicated Error Logging:** Tracks unsupported device IDs in `_unsupported_device_ids` to eliminate repetitive log flooding on every polling interval.
+  - *Upstream Reference:* Hardened from unmerged upstream PR [zlangbert/ha-daikinone#133](https://github.com/zlangbert/ha-daikinone/pull/133), companion PR [ManuelMcLure/ha-daikinone#1](https://github.com/ManuelMcLure/ha-daikinone/pull/1).
 
 ---
 
-### Bug Fixes & Architectural Improvements
+### Architectural & Quality Improvements
 
-* **Multi-Equipment Device Collision Fix:** Fixed bug where multi-split or dual-furnace systems collided on device identifiers in Home Assistant's device registry. Indoor air handlers and outdoor compressors now properly appear as separate linked sub-devices.
-  - *Upstream PR:* [zlangbert/ha-daikinone#136](https://github.com/zlangbert/ha-daikinone/pull/136) (Submitted & Open)
-* **Auth Self-Healing & Transport Resiliency:** Implemented defensive `asyncio.Lock` ladder, automatic token re-negotiation on HTTP 401/403 expiry, and Home Assistant config entry reauthentication flow.
-  - *Upstream Reference:* Refined and hardened from [zlangbert/ha-daikinone#129](https://github.com/zlangbert/ha-daikinone/pull/129)
-* **Defensive Ingestion for Unsupported Devices:** Traps schema variations (`KeyError`, `ValueError`, `TypeError`) and logs deduplicated diagnostics without crashing setup.
-  - *Upstream Reference:* [zlangbert/ha-daikinone#133](https://github.com/zlangbert/ha-daikinone/pull/133), companion PR [ManuelMcLure/ha-daikinone#1](https://github.com/ManuelMcLure/ha-daikinone/pull/1)
-* **EPA 6-Tier AQI Standard:** Reconciled indoor air quality mapping with the EPA AirNow 6-tier standard (0–5), defensive `_missing_ = UNKNOWN` fallback, and official string translations.
-  - *Upstream Reference:* Reconciles [zlangbert/ha-daikinone#126](https://github.com/zlangbert/ha-daikinone/pull/126) and [#127](https://github.com/zlangbert/ha-daikinone/pull/127)
 * **Strict Sentence Case Standards:** All entity names, descriptions, translations, and UI labels adhere to Home Assistant sentence-case conventions.
+* **Schema v0 & v1 Unique ID Migration:** Full non-breaking backward compatibility with upstream legacy unique IDs while standardizing on Schema v1 keys.
+* **Comprehensive Automated Test Suite:** Expanded test suite from upstream's 29 tests to 297 automated unit and integration tests (100% passing) with strict static type checking (`ty check`) and linting (`ruff`).
 
 ---
 
