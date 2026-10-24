@@ -13,8 +13,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.MM
 This release establishes the modern communicating heat pump, dual-fuel, and diagnostic platform for the Daikin One+ integration in Home Assistant.
 
 * **Upstream Baseline:** Forked from [`zlangbert/ha-daikinone:v0.10.1`](https://github.com/zlangbert/ha-daikinone/releases/tag/v0.10.1) (commit `f4ea9a6`).
-* **Test Suite:** Expanded from upstream's 29 tests to **271 automated tests** covering all client protocols, model serialization, device mappers, and entity platforms.
+* **Test Suite:** Expanded from upstream's 29 tests to **297 automated tests** covering all client protocols, model serialization, device mappers, and entity platforms.
 * **Community & Architectural Attribution:** Incorporates API register research and feature inspiration from `@apetrycki`'s pioneering work in [`daikinskyport`](https://github.com/apetrycki/daikinskyport) (which originally identified registers for OneClean, Night Mode, and Aux Heat), reimplemented here using modern strongly-typed Home Assistant entity platforms. Special recognition also goes to `@chrisjohnson00` (auth resilience), `@onnastick` (away mode wire mapping), and `@ManuelMcLure` (unsupported device handling). Co-developed and hardware-tested with Google DeepMind Antigravity.
+
+---
+
+### Breaking Changes
+
+* **Emergency Heat Preset Mode Removed in Favor of Dedicated Switch:**  
+  The legacy "Emergency heat" preset mode was removed from `climate.<thermostat>` `preset_modes` in favor of the dedicated `switch.<thermostat>_emergency_heat` entity. This aligns with Home Assistant Core architecture standards (RFC #932) and resolves sub-zero concurrency and race conditions when toggling aux heat.
+  - **Action Required:** Users with existing automations calling `climate.set_preset_mode` with preset `"Emergency heat"` or `"emergency_heat"` must update them to call `switch.turn_on` on `switch.<thermostat>_emergency_heat` (and `switch.turn_off` to disengage).
 
 ---
 
@@ -61,6 +69,19 @@ This release establishes the modern communicating heat pump, dual-fuel, and diag
 #### 8. Schedule Control
 * Added `button.<thermostat>_resume_schedule` to dismiss temporary hold overrides and `switch.<thermostat>_schedule` to toggle schedule execution.
   - *Upstream PR:* [zlangbert/ha-daikinone#137](https://github.com/zlangbert/ha-daikinone/pull/137) (Submitted & Open)
+
+#### 9. Native Thermostat & Equipment Availability Cascade
+* **Availability Architecture (`_is_device_available` / `is_device_online`):** Entities across all platforms (`climate`, `sensor`, `binary_sensor`, `switch`, `select`, `number`, `time`, `button`) now dynamically track hardware reachability instead of remaining hardcoded to available. Subordinate equipment entities (furnaces, heat pumps, coils) automatically inherit parent thermostat online status.
+* **Empty Offline Payload Trap Fixed:** Fixed coordinator bug where thermostats reporting offline with empty telemetry payloads (`online: false, data: {}`) during power outages or network interruptions were skipped, retaining stale cached data. Thermostats are now properly marked offline.
+* **Diagnostic Connectivity Tracking:** Added and refined dynamic device reachability tracking and diagnostic connectivity (`binary_sensor.<thermostat>_connectivity` / `sensor.<thermostat>_online_status`), which remains available during outages to cleanly display `Offline` instead of transitioning to an ambiguous `Unavailable` state. Enabled state polling on `button.<thermostat>_resume_schedule` to track availability.
+  - *Branch:* [`feature/thermostat-connectivity`](https://github.com/wirecuttr/ha-daikinone/tree/feature/thermostat-connectivity)
+
+#### 10. Skyport Location Support & 3-Tier Device Hierarchy
+* **Manifest Modernization (`integration_type: hub`):** Declared integration type as `hub` in `manifest.json`, standardizing Home Assistant settings under the `Hubs` header.
+* **Property Location Hub Devices:** Supports Daikin Skyport property locations (`/locations`). Registers each property as a parent Location Hub device (`entry_type: DeviceEntryType.SERVICE`, `model: "Skyport Location"`). Thermostats declare `via_device` pointing to their parent Location Hub, and child equipment points to the thermostat, establishing a clean 3-tier device hierarchy (`Location Hub -> Thermostat -> HVAC Equipment`).
+* **Dynamic Config Entry Title:** Automatically names config entries using the primary location name (e.g. `Home`), with in-place migration for existing installations.
+* **Empty Location Filtering & Defensive Address Parsing:** Safely decodes inner-JSON address payloads with plain-text fallback, while filtering out unpopulated properties without active thermostats to prevent ghost hub devices.
+  - *Branch:* [`feature/location-device-hierarchy`](https://github.com/wirecuttr/ha-daikinone/tree/feature/location-device-hierarchy)
 
 ---
 
