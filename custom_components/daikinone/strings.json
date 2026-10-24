@@ -51,6 +51,15 @@
       }
     },
     "sensor": {
+      "heat_source": {
+        "name": "Heat source",
+        "state": {
+          "none": "None",
+          "heat_pump": "Heat pump",
+          "gas": "Gas furnace",
+          "resistive": "Resistive"
+        }
+      },
       "outdoor_air_quality_summary": {
         "name": "Outdoor air quality",
         "state": {

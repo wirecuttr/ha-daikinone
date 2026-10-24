@@ -24,15 +24,18 @@ from homeassistant.helpers.typing import StateType
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.entity import DaikinOneEntity
+from custom_components.daikinone.client.mapping import determine_heat_source
 from custom_components.daikinone.client.models import (
     DaikinDevice,
     DaikinEEVCoil,
     DaikinEquipment,
+    DaikinHeatSource,
     DaikinIndoorUnit,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
     DaikinThermostat,
+    DaikinThermostatCapability,
 )
 
 log = logging.getLogger(__name__)
@@ -274,6 +277,22 @@ async def async_setup_entry(
             DaikinOneScheduleStatusSensor(data=data, device=thermostat),
             DaikinOneScheduleResumeTimeSensor(data=data, device=thermostat),
         ]
+
+        if DaikinThermostatCapability.HEAT in thermostat.capabilities:
+            entities.append(
+                DaikinOneHeatSourceSensor(
+                    description=SensorEntityDescription(
+                        key="heat_source",
+                        name="Heat source",
+                        translation_key="heat_source",
+                        has_entity_name=True,
+                        device_class=SensorDeviceClass.ENUM,
+                        options=[s.value for s in DaikinHeatSource],
+                    ),
+                    data=data,
+                    device=thermostat,
+                )
+            )
 
         if thermostat.outdoor_temperature is not None:
             entities.append(
@@ -1133,7 +1152,7 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
 
         match data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY]:
             case 0:
-                name = self.entity_description.name or self.name
+                name = description.name or self.name
                 self._attr_unique_id = f"{self._device.id}-{name}"
             case 1:
                 self._attr_unique_id = f"{self._device.id}-{self.entity_description.key}"
@@ -1152,6 +1171,23 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
 
     def update_entity_attributes(self) -> None:
         self._attr_native_value = self._attribute(self._device)
+
+
+class DaikinOneHeatSourceSensor(DaikinOneThermostatSensor):
+    """Sensor reporting the active heat source delivering heat to the space."""
+
+    def __init__(
+        self,
+        description: SensorEntityDescription,
+        data: DaikinOneData,
+        device: DaikinThermostat,
+    ) -> None:
+        super().__init__(
+            description,
+            data,
+            device,
+            attribute=lambda t: determine_heat_source(t).value,
+        )
 
 
 class DaikinOneEquipmentErrorHistorySensor(DaikinOneThermostatSensor):
@@ -1242,7 +1278,7 @@ class DaikinOneEquipmentSensor[E: DaikinEquipment](DaikinOneSensor[E]):
 
         match data.entry.data[CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY]:
             case 0:
-                name = self.entity_description.name or self.name
+                name = description.name or self.name
                 self._attr_unique_id = f"{self._device.id}-{name}"
             case 1:
                 self._attr_unique_id = f"{self._device.thermostat_id}-{self._device.id}-{self.entity_description.key}"

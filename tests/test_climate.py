@@ -1,4 +1,4 @@
-"""Tests for Daikin One climate platform, preset modes, and concurrency."""
+"""Tests for Daikin One climate platform, preset modes, and native HVAC actions."""
 
 import logging
 from types import SimpleNamespace
@@ -10,6 +10,7 @@ from homeassistant.components.climate.const import (
     PRESET_AWAY,
     PRESET_NONE,
     ClimateEntityFeature,
+    HVACAction,
     HVACMode,
 )
 from homeassistant.components.switch import SwitchEntityDescription
@@ -17,6 +18,10 @@ from homeassistant.components.switch import SwitchEntityDescription
 from custom_components.daikinone import DaikinOneData
 from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
+    DaikinIndoorUnit,
+    DaikinOutdoorUnit,
+    DaikinOutdoorUnitHeaterStatus,
+    DaikinOutdoorUnitReversingValveStatus,
     DaikinThermostat,
     DaikinThermostatCapability,
     DaikinThermostatFanMode,
@@ -39,7 +44,9 @@ def _create_mock_thermostat(
     name: str = "Living Room",
     capabilities: set[DaikinThermostatCapability] | None = None,
     mode: DaikinThermostatMode = DaikinThermostatMode.HEAT,
+    status: DaikinThermostatStatus = DaikinThermostatStatus.IDLE,
     away_mode: bool | None = None,
+    equipment: dict | None = None,
 ) -> DaikinThermostat:
     return DaikinThermostat(
         id=thermostat_id,
@@ -50,7 +57,7 @@ def _create_mock_thermostat(
         online=True,
         capabilities=capabilities if capabilities is not None else {DaikinThermostatCapability.HEAT},
         mode=mode,
-        status=DaikinThermostatStatus.IDLE,
+        status=status,
         fan_mode=DaikinThermostatFanMode.OFF,
         fan_speed=DaikinThermostatFanSpeed.LOW,
         schedule=DaikinThermostatSchedule(enabled=True, override=False),
@@ -68,8 +75,76 @@ def _create_mock_thermostat(
         air_quality_indoor=None,
         one_clean_fan_active=None,
         dual_fuel_furnace_lockout_enable=None,
-        equipment={},
+        equipment=equipment if equipment is not None else {},
         away_mode=away_mode,
+    )
+
+
+def _create_outdoor_unit(
+    mode: str | None = None,
+    compressor_speed: int = 0,
+    heat_demand: int = 0,
+) -> DaikinOutdoorUnit:
+    return DaikinOutdoorUnit(
+        id="OD-123",
+        thermostat_id="device123",
+        name="Heat Pump",
+        model="OD-MODEL",
+        serial="OD-SERIAL",
+        firmware_version="1.0.0",
+        inverter_software_version="1.0.0",
+        total_runtime=None,
+        mode=mode,
+        compressor_speed_target=compressor_speed,
+        compressor_speed_current=compressor_speed,
+        outdoor_fan_target_rpm=None,
+        outdoor_fan_rpm=None,
+        suction_pressure_psi=None,
+        eev_opening_percent=None,
+        reversing_valve=DaikinOutdoorUnitReversingValveStatus.UNKNOWN,
+        heat_demand_percent=heat_demand,
+        cool_demand_percent=None,
+        fan_demand_percent=None,
+        fan_demand_airflow=None,
+        dehumidify_demand_percent=None,
+        air_temperature=None,
+        coil_temperature=None,
+        discharge_temperature=None,
+        liquid_temperature=None,
+        defrost_sensor_temperature=None,
+        inverter_fin_temperature=None,
+        power_usage=None,
+        compressor_amps=None,
+        inverter_amps=None,
+        fan_motor_amps=None,
+        crank_case_heater=DaikinOutdoorUnitHeaterStatus.UNKNOWN,
+        drain_pan_heater=DaikinOutdoorUnitHeaterStatus.UNKNOWN,
+        preheat_heater=DaikinOutdoorUnitHeaterStatus.UNKNOWN,
+    )
+
+
+def _create_indoor_unit(
+    airflow: int = 0,
+    heat_demand: int = 0,
+) -> DaikinIndoorUnit:
+    return DaikinIndoorUnit(
+        id="AH-123",
+        thermostat_id="device123",
+        name="Air Handler",
+        model="AH-MODEL",
+        firmware_version="1.0.0",
+        serial="AH-SERIAL",
+        mode=None,
+        current_airflow=airflow,
+        fan_demand_requested_percent=None,
+        fan_demand_current_percent=None,
+        heat_demand_requested_percent=heat_demand,
+        heat_demand_current_percent=heat_demand,
+        cool_demand_requested_percent=None,
+        cool_demand_current_percent=None,
+        humidification_demand_requested_percent=None,
+        dehumidification_demand_requested_percent=None,
+        power_usage=None,
     )
 
 
@@ -196,7 +271,78 @@ class TestClimatePresets:
         switch.update_entity_attributes()
         climate.update_entity_attributes()
 
-        # Both states are active and faithfully reported concurrently!
         assert switch.is_on is True
         assert climate.preset_mode == PRESET_AWAY
         assert climate.hvac_mode == HVACMode.HEAT
+
+
+class TestClimateHVACAction:
+    """Test native HVAC actions on DaikinOneThermostat."""
+
+    async def test_hvac_action_idle(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(status=DaikinThermostatStatus.IDLE)
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.IDLE
+
+    async def test_hvac_action_cooling(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(status=DaikinThermostatStatus.COOLING)
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.COOLING
+
+    async def test_hvac_action_drying(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(status=DaikinThermostatStatus.DRYING)
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.DRYING
+
+    async def test_hvac_action_fan(self, mock_data: DaikinOneData) -> None:
+        t = _create_mock_thermostat(status=DaikinThermostatStatus.CIRCULATING_AIR)
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.FAN
+
+    async def test_hvac_action_heating(self, mock_data: DaikinOneData) -> None:
+        od = _create_outdoor_unit(mode="Heating", compressor_speed=50, heat_demand=80)
+        ah = _create_indoor_unit(airflow=450, heat_demand=80)
+        t = _create_mock_thermostat(
+            status=DaikinThermostatStatus.HEATING,
+            equipment={"od": od, "ah": ah},
+        )
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.HEATING
+
+    async def test_hvac_action_defrosting(self, mock_data: DaikinOneData) -> None:
+        od = _create_outdoor_unit(mode="Defrost", compressor_speed=60, heat_demand=100)
+        ah = _create_indoor_unit(airflow=400, heat_demand=50)
+        t = _create_mock_thermostat(
+            status=DaikinThermostatStatus.HEATING,
+            equipment={"od": od, "ah": ah},
+        )
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.DEFROSTING
+
+    async def test_hvac_action_preheating_startup_mode(self, mock_data: DaikinOneData) -> None:
+        od = _create_outdoor_unit(mode="Heating startup", compressor_speed=30, heat_demand=50)
+        ah = _create_indoor_unit(airflow=0, heat_demand=50)
+        t = _create_mock_thermostat(
+            status=DaikinThermostatStatus.HEATING,
+            equipment={"od": od, "ah": ah},
+        )
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.PREHEATING
+
+    async def test_hvac_action_preheating_zero_airflow(self, mock_data: DaikinOneData) -> None:
+        od = _create_outdoor_unit(mode="Heating", compressor_speed=30, heat_demand=50)
+        ah = _create_indoor_unit(airflow=0, heat_demand=50)
+        t = _create_mock_thermostat(
+            status=DaikinThermostatStatus.HEATING,
+            equipment={"od": od, "ah": ah},
+        )
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.PREHEATING
