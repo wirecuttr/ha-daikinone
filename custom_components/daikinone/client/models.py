@@ -376,3 +376,5 @@ class DaikinThermostat(DaikinDevice):
     ventilation_date: str | None = None
     equipment_errors: list[DaikinEquipmentError] | None = None
     system_errors: list[DaikinSystemError] | None = None
+    sched_resume_time: datetime | None = None
+    sched_override_duration: int | None = None

@@ -28,6 +28,8 @@ from custom_components.daikinone.sensor import (
     CONSUMABLE_SENSOR_CONFIGS,
     DaikinOneConsumableLifeSensor,
     DaikinOneEquipmentErrorHistorySensor,
+    DaikinOneScheduleResumeTimeSensor,
+    DaikinOneScheduleStatusSensor,
     DaikinOneSystemErrorHistorySensor,
     async_setup_entry,
 )
@@ -66,6 +68,8 @@ def _create_mock_thermostat(**kwargs) -> DaikinThermostat:
         "one_clean_fan_active": None,
         "dual_fuel_furnace_lockout_enable": None,
         "equipment": {},
+        "sched_resume_time": None,
+        "sched_override_duration": None,
     }
     defaults.update(kwargs)
     return DaikinThermostat(**defaults)
@@ -381,3 +385,153 @@ class TestErrorHistorySensors:
         data_v1 = DaikinOneData(_hass=None, entry=entry_v1, daikin=MagicMock())  # type: ignore[arg-type]
         assert DaikinOneEquipmentErrorHistorySensor(eq_desc, data_v1, t).unique_id == "dtst123-last_equipment_error"
         assert DaikinOneSystemErrorHistorySensor(sys_desc, data_v1, t).unique_id == "dtst123-last_system_error"
+
+
+class TestScheduleStatusSensor:
+    def test_metadata_and_schema_v1_uid(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat()
+        sensor = DaikinOneScheduleStatusSensor(data=mock_data, device=thermostat)
+
+        assert sensor.unique_id == "device123-schedule_status"
+        assert sensor.entity_description.key == "schedule_status"
+        assert sensor.entity_description.name == "Schedule status"
+        assert sensor.entity_description.device_class == SensorDeviceClass.ENUM
+        assert sensor.entity_description.entity_category is None
+        assert sensor.entity_description.options == [
+            "using_schedule",
+            "temporary_hold",
+            "permanent_hold",
+        ]
+
+    def test_schema_v0_uid(self) -> None:
+        thermostat = _create_mock_thermostat()
+        entry_v0 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 0})
+        data_v0 = DaikinOneData(_hass=None, entry=entry_v0, daikin=MagicMock())  # type: ignore[arg-type]
+        sensor = DaikinOneScheduleStatusSensor(data=data_v0, device=thermostat)
+
+        assert sensor.unique_id == "device123-Schedule Status"
+
+    def test_using_schedule_state_and_icon(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(schedule=DaikinThermostatSchedule(enabled=True, override=False))
+        sensor = DaikinOneScheduleStatusSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value == "using_schedule"
+        assert sensor.icon == "mdi:calendar-check"
+
+    def test_temporary_hold_state_and_icon(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(schedule=DaikinThermostatSchedule(enabled=True, override=True))
+        sensor = DaikinOneScheduleStatusSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value == "temporary_hold"
+        assert sensor.icon == "mdi:calendar-clock"
+
+    def test_permanent_hold_when_schedule_disabled(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(schedule=DaikinThermostatSchedule(enabled=False, override=False))
+        sensor = DaikinOneScheduleStatusSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value == "permanent_hold"
+        assert sensor.icon == "mdi:calendar-remove"
+
+        thermostat_override_false = _create_mock_thermostat(
+            schedule=DaikinThermostatSchedule(enabled=False, override=True)
+        )
+        sensor_override_false = DaikinOneScheduleStatusSensor(data=mock_data, device=thermostat_override_false)
+
+        assert sensor_override_false.native_value == "permanent_hold"
+        assert sensor_override_false.icon == "mdi:calendar-remove"
+
+    async def test_async_get_device(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat()
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)  # type: ignore[method-assign]
+        sensor = DaikinOneScheduleStatusSensor(data=mock_data, device=thermostat)
+
+        dev = await sensor.async_get_device()
+        assert dev.id == "device123"
+
+
+class TestScheduleResumeTimeSensor:
+    def test_metadata_and_schema_v1_uid(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat()
+        sensor = DaikinOneScheduleResumeTimeSensor(data=mock_data, device=thermostat)
+
+        assert sensor.unique_id == "device123-schedule_resume_time"
+        assert sensor.entity_description.key == "schedule_resume_time"
+        assert sensor.entity_description.name == "Schedule resume time"
+        assert sensor.entity_description.device_class == SensorDeviceClass.TIMESTAMP
+        assert sensor.entity_description.entity_category is None
+        assert sensor.icon == "mdi:clock-end"
+
+    def test_schema_v0_uid(self) -> None:
+        thermostat = _create_mock_thermostat()
+        entry_v0 = SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 0})
+        data_v0 = DaikinOneData(_hass=None, entry=entry_v0, daikin=MagicMock())  # type: ignore[arg-type]
+        sensor = DaikinOneScheduleResumeTimeSensor(data=data_v0, device=thermostat)
+
+        assert sensor.unique_id == "device123-Schedule Override Resume Time"
+
+    def test_active_override_returns_timestamp(self, mock_data: DaikinOneData) -> None:
+        resume_dt = datetime(2026, 10, 24, 18, 0, 0, tzinfo=UTC)
+        thermostat = _create_mock_thermostat(
+            schedule=DaikinThermostatSchedule(enabled=True, override=True),
+            sched_resume_time=resume_dt,
+        )
+        sensor = DaikinOneScheduleResumeTimeSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value == resume_dt
+
+    def test_no_override_returns_none(self, mock_data: DaikinOneData) -> None:
+        resume_dt = datetime(2026, 10, 24, 18, 0, 0, tzinfo=UTC)
+        thermostat = _create_mock_thermostat(
+            schedule=DaikinThermostatSchedule(enabled=True, override=False),
+            sched_resume_time=resume_dt,
+        )
+        sensor = DaikinOneScheduleResumeTimeSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value is None
+
+    def test_schedule_disabled_returns_none(self, mock_data: DaikinOneData) -> None:
+        resume_dt = datetime(2026, 10, 24, 18, 0, 0, tzinfo=UTC)
+        thermostat = _create_mock_thermostat(
+            schedule=DaikinThermostatSchedule(enabled=False, override=True),
+            sched_resume_time=resume_dt,
+        )
+        sensor = DaikinOneScheduleResumeTimeSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value is None
+
+    def test_none_resume_time_returns_none(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat(
+            schedule=DaikinThermostatSchedule(enabled=True, override=True),
+            sched_resume_time=None,
+        )
+        sensor = DaikinOneScheduleResumeTimeSensor(data=mock_data, device=thermostat)
+
+        assert sensor.native_value is None
+
+    async def test_async_get_device(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat()
+        mock_data.daikin.get_thermostat = MagicMock(return_value=thermostat)  # type: ignore[method-assign]
+        sensor = DaikinOneScheduleResumeTimeSensor(data=mock_data, device=thermostat)
+
+        dev = await sensor.async_get_device()
+        assert dev.id == "device123"
+
+    async def test_async_setup_entry_registers_schedule_sensors(self, mock_data: DaikinOneData) -> None:
+        thermostat = _create_mock_thermostat()
+        mock_data.daikin.get_thermostats = MagicMock(return_value={"device123": thermostat})  # type: ignore[method-assign]
+
+        hass = SimpleNamespace(data={DOMAIN: mock_data})
+        added_entities: list = []
+
+        def add_entities_callback(entities: list, update_before_add: bool = False) -> None:
+            added_entities.extend(entities)
+
+        await async_setup_entry(hass, mock_data.entry, add_entities_callback)
+
+        status_sensors = [e for e in added_entities if isinstance(e, DaikinOneScheduleStatusSensor)]
+        resume_sensors = [e for e in added_entities if isinstance(e, DaikinOneScheduleResumeTimeSensor)]
+
+        assert len(status_sensors) == 1
+        assert len(resume_sensors) == 1
+        assert status_sensors[0].unique_id == "device123-schedule_status"
+        assert resume_sensors[0].unique_id == "device123-schedule_resume_time"

@@ -190,6 +190,13 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         return str(value)
 
     data = payload.data
+    sched_resume_time_val = payload.data.get("schedResumeTime")
+    sched_resume_time = (
+        datetime.fromtimestamp(sched_resume_time_val, tz=UTC)
+        if isinstance(sched_resume_time_val, (int, float)) and sched_resume_time_val > 0
+        else None
+    )
+    sched_override_duration = payload.data.get("schedOverrideDuration")
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -290,6 +297,8 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         ventilation_date=as_str(data.get("alertVentilationDate")),
         equipment_errors=map_equipment_errors(payload.data),
         system_errors=map_system_errors(payload.data),
+        sched_resume_time=sched_resume_time,
+        sched_override_duration=sched_override_duration,
     )
 
 

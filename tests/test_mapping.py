@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -1305,3 +1306,66 @@ class TestMapLocation:
         loc_malformed = map_location(DaikinLocationResponse(**raw_malformed))
         assert loc_malformed.street_address == "{invalid json: 'no quotes'}"
         assert loc_malformed.apt == ""
+
+
+class TestThermostatScheduleMapping:
+    async def test_thermostat_schedule_defaults_when_unpopulated(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is False
+        assert thermostat.sched_resume_time is None
+        assert thermostat.sched_override_duration is None
+
+    async def test_thermostat_schedule_active_override_mapping(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "schedEnabled": True,
+                "schedOverride": 1,
+                "schedResumeTime": 1792864800,
+                "schedOverrideDuration": 120,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is True
+        assert thermostat.sched_resume_time == datetime(2026, 10, 24, 18, 0, 0, tzinfo=timezone.utc)
+        assert thermostat.sched_override_duration == 120
+
+    async def test_thermostat_schedule_zero_or_negative_resume_time(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "schedEnabled": True,
+                "schedOverride": 0,
+                "schedResumeTime": 0,
+                "schedOverrideDuration": 0,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.override is False
+        assert thermostat.sched_resume_time is None
+        assert thermostat.sched_override_duration == 0
+
+        # Negative epoch also returns None
+        device_data["data"]["schedResumeTime"] = -1
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.sched_resume_time is None

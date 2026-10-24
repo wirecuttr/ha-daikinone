@@ -145,6 +145,17 @@
       },
       "last_system_error": {
         "name": "Last system error"
+      },
+      "schedule_status": {
+        "name": "Schedule status",
+        "state": {
+          "using_schedule": "Using schedule settings",
+          "temporary_hold": "Schedule overridden",
+          "permanent_hold": "Permanent hold"
+        }
+      },
+      "schedule_resume_time": {
+        "name": "Schedule resume time"
       }
     },
     "binary_sensor": {
