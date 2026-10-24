@@ -4,8 +4,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.mapping import determine_operating_state, map_thermostat
-from custom_components.daikinone.client.wire import DaikinDeviceDataResponse
+from custom_components.daikinone.client.mapping import (
+    determine_operating_state,
+    map_location,
+    map_thermostat,
+)
+from custom_components.daikinone.client.wire import DaikinDeviceDataResponse, DaikinLocationResponse
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinIndoorUnit,
@@ -1202,3 +1206,102 @@ class TestThermostatEmergencyHeatCapability:
         device_data["data"]["modeEmHeatAvailable"] = True
         thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
         assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+
+class TestMapLocation:
+    """Tests for map_location parsing of Daikin Skyport location responses."""
+
+    def test_map_location_valid_json_address(self) -> None:
+        raw = {
+            "id": "e0a388d4-629b-11ec-a89c-4f75309dfd56",
+            "name": "homeHA",
+            "address": '{"address":"88 Canada Olympic Rd","apt":"Suite 100"}',
+            "city": "Calgary",
+            "province": "AB",
+            "postalCode": "T3B5R5",
+            "country": "CA",
+            "timeZone": "America/Regina",
+            "latitude": 51.087439,
+            "longitude": -114.206518,
+            "hasOwner": True,
+        }
+        loc = map_location(DaikinLocationResponse(**raw))
+
+        assert loc.id == "e0a388d4-629b-11ec-a89c-4f75309dfd56"
+        assert loc.name == "homeHA"
+        assert loc.street_address == "88 Canada Olympic Rd"
+        assert loc.apt == "Suite 100"
+        assert loc.city == "Calgary"
+        assert loc.province == "AB"
+        assert loc.postal_code == "T3B5R5"
+        assert loc.country == "CA"
+        assert loc.time_zone == "America/Regina"
+        assert loc.latitude == pytest.approx(51.087439)
+        assert loc.longitude == pytest.approx(-114.206518)
+        assert loc.has_owner is True
+
+    def test_map_location_plain_string_address(self) -> None:
+        raw = {
+            "id": "loc-plain",
+            "name": "Mountain Cabin",
+            "address": "123 Aspen Way",
+            "city": "Banff",
+            "province": "AB",
+            "postalCode": "T0L 0C0",
+            "country": "CA",
+            "timeZone": "America/Edmonton",
+            "latitude": 51.1784,
+            "longitude": -115.5708,
+            "hasOwner": False,
+        }
+        loc = map_location(DaikinLocationResponse(**raw))
+
+        assert loc.id == "loc-plain"
+        assert loc.name == "Mountain Cabin"
+        assert loc.street_address == "123 Aspen Way"
+        assert loc.apt == ""
+        assert loc.city == "Banff"
+        assert loc.has_owner is False
+
+    def test_map_location_missing_optional_fields(self) -> None:
+        raw = {
+            "id": "loc-min",
+            "name": "Minimal Property",
+        }
+        loc = map_location(DaikinLocationResponse(**raw))
+
+        assert loc.id == "loc-min"
+        assert loc.name == "Minimal Property"
+        assert loc.street_address == ""
+        assert loc.apt == ""
+        assert loc.city == ""
+        assert loc.province == ""
+        assert loc.postal_code == ""
+        assert loc.country == ""
+        assert loc.time_zone == ""
+        assert loc.latitude is None
+        assert loc.longitude is None
+        assert loc.has_owner is False
+
+    def test_map_location_null_and_malformed_address(self) -> None:
+        raw_null = {
+            "id": "loc-null",
+            "name": "Null Address Property",
+            "address": None,
+            "city": None,
+            "province": None,
+            "postalCode": None,
+        }
+        loc_null = map_location(DaikinLocationResponse(**raw_null))
+        assert loc_null.street_address == ""
+        assert loc_null.apt == ""
+        assert loc_null.city == ""
+
+        raw_malformed = {
+            "id": "loc-malformed",
+            "name": "Malformed JSON Address",
+            "address": "{invalid json: 'no quotes'}",
+        }
+        loc_malformed = map_location(DaikinLocationResponse(**raw_malformed))
+        assert loc_malformed.street_address == "{invalid json: 'no quotes'}"
+        assert loc_malformed.apt == ""

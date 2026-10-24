@@ -18,8 +18,8 @@ from custom_components.daikinone.client.models import (
     DaikinThermostatStatus,
     DaikinUserCredentials,
 )
-from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
-from custom_components.daikinone.entity import DaikinOneEntity
+from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY, DOMAIN
+from custom_components.daikinone.entity import DaikinOneEntity, DaikinOneThermostatEntity
 from custom_components.daikinone.select import (
     DUAL_FUEL_PRIORITY_OPTIONS,
     DaikinOneDualFuelPrioritySelect,
@@ -459,3 +459,90 @@ class TestUpdateStateOptimistically:
                 )
 
         assert entity._updates_paused is False
+
+
+class TestDeviceHierarchy:
+    """Tests for native multi-property device hierarchy via via_device."""
+
+    async def test_thermostat_via_device_links_to_location_hub(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify thermostat device info links via_device to its parent location hub."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            dev = _make_device()
+            dev["locationId"] = "loc-456"
+            await _refresh(daikin_client, mock_req, dev)
+
+        thermostat = daikin_client.get_thermostat("device123")
+        assert thermostat.location_id == "loc-456"
+
+        entity = _StubEntity(data=data, device=thermostat)
+        assert entity.device_parent == "loc-456"
+
+        info = entity.get_device_info()
+        assert info is not None
+        assert info["identifiers"] == {(DOMAIN, "device123")}
+        assert info["via_device"] == (DOMAIN, "loc-456")
+
+    async def test_thermostat_without_location_omits_via_device(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify thermostat without locationId does not set via_device."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            dev = _make_device()
+            dev["locationId"] = ""
+            await _refresh(daikin_client, mock_req, dev)
+
+        thermostat = daikin_client.get_thermostat("device123")
+        assert thermostat.location_id == ""
+
+        entity = _StubEntity(data=data, device=thermostat)
+        assert entity.device_parent is None
+
+        info = entity.get_device_info()
+        assert info is not None
+        assert "via_device" not in info
+
+    async def test_daikin_one_thermostat_entity_subclass(self, daikin_client: DaikinOne, data: DaikinOneData) -> None:
+        """Verify DaikinOneThermostatEntity explicitly provides device_parent and via_device."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            dev = _make_device()
+            dev["locationId"] = "loc-789"
+            await _refresh(daikin_client, mock_req, dev)
+
+        thermostat = daikin_client.get_thermostat("device123")
+
+        class _ThermostatStub(DaikinOneThermostatEntity):
+            async def async_get_device(self) -> DaikinThermostat:
+                return self._device
+
+            def update_entity_attributes(self) -> None:
+                pass
+
+        entity = _ThermostatStub(data=data, device=thermostat)
+        assert entity.device_parent == "loc-789"
+        info = entity.get_device_info()
+        assert info is not None
+        assert info["via_device"] == (DOMAIN, "loc-789")
+
+    async def test_equipment_via_device_links_to_parent_thermostat(
+        self, daikin_client: DaikinOne, data: DaikinOneData
+    ) -> None:
+        """Verify subordinate equipment links via_device to its parent thermostat."""
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            dev = _make_device(AIR_HANDLER_DATA)
+            dev["locationId"] = "loc-123"
+            await _refresh(daikin_client, mock_req, dev)
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        unit = next(e for e in thermostat.equipment.values() if isinstance(e, DaikinIndoorUnit))
+
+        sensor = DaikinOneEquipmentSensor(
+            description=_power_description(), data=data, device=unit, attribute=lambda e: e.power_usage
+        )
+        assert sensor.device_parent == "device123"
+
+        info = sensor.get_device_info()
+        assert info is not None
+        assert info["identifiers"] == {(DOMAIN, f"device123-{unit.id}")}
+        assert info["via_device"] == (DOMAIN, "device123")

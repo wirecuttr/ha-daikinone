@@ -60,8 +60,10 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
 
     @property
     def device_parent(self) -> str | None:
-        """Return the name of the device."""
+        """Return the parent device ID."""
         match self._device:
+            case DaikinThermostat():
+                return self._device.location_id if self._device.location_id else None
             case DaikinEquipment():
                 thermostat = self._data.daikin.get_thermostat(self._device.thermostat_id)
                 return thermostat.id
@@ -171,3 +173,12 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
 
         # check if the value has been updated to the expected value
         return check(await self.async_get_device())
+
+
+class DaikinOneThermostatEntity(DaikinOneEntity[DaikinThermostat]):
+    """Base entity for Daikin thermostat devices."""
+
+    @property
+    def device_parent(self) -> str | None:
+        """Return the location ID to nest the thermostat under its property hub."""
+        return self._device.location_id if self._device.location_id else None

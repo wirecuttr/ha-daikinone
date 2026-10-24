@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from custom_components.daikinone.client.wire import (
     CelsiusField,
     DaikinDeviceDataResponse,
+    DaikinLocationResponse,
     FloatField,
     IntField,
     PercentField,
@@ -266,3 +267,43 @@ class TestDaikinDeviceDataResponse:
         data["data"] = nested
         payload = DaikinDeviceDataResponse(**data)  # type: ignore[arg-type]
         assert payload.data == nested
+
+
+class TestDaikinLocationResponse:
+    def test_parses_valid_payload(self) -> None:
+        raw = {
+            "id": "e0a388d4-629b-11ec-a89c-4f75309dfd56",
+            "name": "homeHA",
+            "address": '{"address":"88 Canada Olympic Rd","apt":""}',
+            "city": "Calgary",
+            "province": "AB",
+            "postalCode": "T3B5R5",
+            "country": "CA",
+            "timeZone": "America/Regina",
+            "latitude": 51.087439,
+            "longitude": -114.206518,
+            "hasOwner": True,
+        }
+        loc = DaikinLocationResponse(**raw)
+        assert loc.id == "e0a388d4-629b-11ec-a89c-4f75309dfd56"
+        assert loc.name == "homeHA"
+        assert loc.city == "Calgary"
+        assert loc.hasOwner is True
+
+    def test_default_values(self) -> None:
+        loc = DaikinLocationResponse(id="loc1", name="Cabin")
+        assert loc.id == "loc1"
+        assert loc.name == "Cabin"
+        assert loc.address == ""
+        assert loc.city == ""
+        assert loc.province == ""
+        assert loc.postalCode == ""
+        assert loc.country == ""
+        assert loc.timeZone == ""
+        assert loc.latitude is None
+        assert loc.longitude is None
+        assert loc.hasOwner is False
+
+    def test_missing_required_field_raises(self) -> None:
+        with pytest.raises(ValidationError):
+            DaikinLocationResponse(id="loc1")  # missing name

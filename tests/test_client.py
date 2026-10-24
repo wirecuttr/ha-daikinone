@@ -9,7 +9,7 @@ import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import DaikinThermostatFanCirculateDuration, DaikinUserCredentials
-from custom_components.daikinone.client.wire import DAIKIN_API_URL_DEVICE_DATA
+from custom_components.daikinone.client.wire import DAIKIN_API_URL_DEVICE_DATA, DAIKIN_API_URL_LOCATIONS
 from tests.test_mapping import _make_device
 
 
@@ -275,6 +275,101 @@ class TestOfflineDeviceHandling:
             await daikin_client.update()
 
         assert "device123" in daikin_client.thermostats
+
+
+class TestClientLocations:
+    """Tests for property location fetching, mapping, and caching."""
+
+    async def test_get_locations_fetching_mapping_and_caching(self, daikin_client: DaikinOne) -> None:
+        """Verify get_locations requests locations API, maps models, and caches them."""
+        raw_locations = [
+            {
+                "id": "loc-1",
+                "name": "homeHA",
+                "address": '{"address":"88 Canada Olympic Rd","apt":""}',
+                "city": "Calgary",
+                "province": "AB",
+                "postalCode": "T3B5R5",
+                "country": "CA",
+                "timeZone": "America/Regina",
+                "latitude": 51.087439,
+                "longitude": -114.206518,
+                "hasOwner": True,
+            },
+            {
+                "id": "loc-2",
+                "name": "Cabin",
+                "address": "456 Pine Rd",
+                "city": "Canmore",
+                "province": "AB",
+                "postalCode": "T1W 1A1",
+                "country": "CA",
+                "timeZone": "America/Edmonton",
+                "latitude": 51.089,
+                "longitude": -115.359,
+                "hasOwner": False,
+            },
+        ]
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = raw_locations
+            locations = await daikin_client.get_locations()
+
+        mock_req.assert_awaited_once_with(DAIKIN_API_URL_LOCATIONS)
+        assert len(locations) == 2
+        assert "loc-1" in locations
+        assert "loc-2" in locations
+        assert locations["loc-1"].name == "homeHA"
+        assert locations["loc-1"].street_address == "88 Canada Olympic Rd"
+        assert locations["loc-2"].name == "Cabin"
+
+        # Verify cached property and deepcopy behavior
+        assert daikin_client.locations["loc-1"].name == "homeHA"
+        locations["loc-1"].name = "Mutated"
+        assert daikin_client.locations["loc-1"].name == "homeHA"
+
+    async def test_update_populates_locations_if_empty(self, daikin_client: DaikinOne) -> None:
+        """Verify client.update() fetches locations when the internal cache is empty."""
+        raw_locations = [
+            {
+                "id": "loc-1",
+                "name": "homeHA",
+                "address": "88 Canada Olympic Rd",
+            }
+        ]
+        valid_dev = _make_device()
+
+        async def fake_request(url: str, **kwargs: Any) -> list[dict[str, Any]]:
+            if url == DAIKIN_API_URL_LOCATIONS:
+                return raw_locations
+            return [valid_dev]
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock, side_effect=fake_request):
+            await daikin_client.update()
+
+        assert "loc-1" in daikin_client.locations
+        assert daikin_client.locations["loc-1"].name == "homeHA"
+        assert "device123" in daikin_client.thermostats
+
+    async def test_update_continues_if_locations_fetch_fails(
+        self, daikin_client: DaikinOne, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Verify client.update() logs a warning and proceeds to update devices if locations request fails."""
+        valid_dev = _make_device()
+
+        async def fake_request(url: str, **kwargs: Any) -> list[dict[str, Any]]:
+            if url == DAIKIN_API_URL_LOCATIONS:
+                raise RuntimeError("Cloud location service unavailable")
+            return [valid_dev]
+
+        with (
+            caplog.at_level(logging.WARNING),
+            patch.object(daikin_client._transport, "request", new_callable=AsyncMock, side_effect=fake_request),
+        ):
+            await daikin_client.update()
+
+        assert "device123" in daikin_client.thermostats
+        assert any("Failed to fetch locations" in r.message for r in caplog.records)
 
 
 @pytest.mark.parametrize(

@@ -56,6 +56,31 @@ class TestAsyncStepUser:
 
         assert result["type"] == FlowResultType.CREATE_ENTRY
 
+    async def test_successful_login_sets_entry_title_from_location(self) -> None:
+        flow = DaikinOneConfigFlow()
+
+        mock_location = MagicMock()
+        mock_location.name = "homeHA"
+
+        with patch("custom_components.daikinone.config_flow.DaikinOne") as mock_daikin_cls:
+            mock_daikin_cls.return_value.login = AsyncMock(return_value=True)
+            mock_daikin_cls.return_value.get_locations = AsyncMock(return_value={"loc-1": mock_location})
+            result = await flow.async_step_user(_user_input())
+
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["title"] == "homeHA"
+
+    async def test_successful_login_without_locations_defaults_title(self) -> None:
+        flow = DaikinOneConfigFlow()
+
+        with patch("custom_components.daikinone.config_flow.DaikinOne") as mock_daikin_cls:
+            mock_daikin_cls.return_value.login = AsyncMock(return_value=True)
+            mock_daikin_cls.return_value.get_locations = AsyncMock(return_value={})
+            result = await flow.async_step_user(_user_input())
+
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["title"] == "Daikin One"
+
 
 class TestAsyncStepReauth:
     """Regression tests: rejected stored credentials must be fixable through the UI, not just

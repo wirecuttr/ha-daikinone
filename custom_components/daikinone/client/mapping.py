@@ -1,6 +1,7 @@
 """Pure functions that turn a Daikin device-data payload into domain models."""
 
 from datetime import UTC, datetime
+import json
 import logging
 import math
 from typing import Any
@@ -11,6 +12,7 @@ from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinEquipment,
     DaikinIndoorUnit,
+    DaikinLocation,
     DaikinOneAirQualitySensorIndoor,
     DaikinOneAirQualitySensorOutdoor,
     DaikinOperatingState,
@@ -30,6 +32,7 @@ from custom_components.daikinone.client.models import (
 )
 from custom_components.daikinone.client.wire import (
     DaikinDeviceDataResponse,
+    DaikinLocationResponse,
     capitalize,
     read,
 )
@@ -564,3 +567,35 @@ def determine_operating_state(thermostat: DaikinThermostat) -> tuple[str, str | 
         return DaikinOperatingState.HEATING.value, None
 
     return DaikinOperatingState.IDLE.value, None
+
+
+def map_location(response: DaikinLocationResponse) -> DaikinLocation:
+    """Map a DaikinLocationResponse wire object to a DaikinLocation domain model."""
+    raw_addr = response.address or ""
+    street_address = raw_addr
+    apt = ""
+    if raw_addr:
+        try:
+            parsed = json.loads(raw_addr)
+            if isinstance(parsed, dict):
+                street_address = str(parsed.get("address", "") or "")
+                apt = str(parsed.get("apt", "") or "")
+            else:
+                street_address = raw_addr
+        except json.JSONDecodeError, TypeError, ValueError:
+            street_address = raw_addr
+
+    return DaikinLocation(
+        id=response.id,
+        name=response.name,
+        street_address=street_address,
+        apt=apt,
+        city=response.city or "",
+        province=response.province or "",
+        postal_code=response.postalCode or "",
+        country=response.country or "",
+        time_zone=response.timeZone or "",
+        latitude=response.latitude,
+        longitude=response.longitude,
+        has_owner=bool(response.hasOwner),
+    )

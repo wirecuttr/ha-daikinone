@@ -16,6 +16,24 @@ class DaikinUserCredentials:
 
 
 @dataclass
+class DaikinLocation:
+    """Parsed and validated Daikin Skyport property location."""
+
+    id: str
+    name: str
+    street_address: str
+    apt: str
+    city: str
+    province: str
+    postal_code: str
+    country: str
+    time_zone: str
+    latitude: float | None
+    longitude: float | None
+    has_owner: bool
+
+
+@dataclass
 class DaikinDevice:
     id: str
     name: str

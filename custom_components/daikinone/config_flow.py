@@ -25,10 +25,10 @@ class DaikinOneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Return current schema."""
         return vol.Schema({vol.Required(CONF_EMAIL): str, vol.Required(CONF_PASSWORD): str})
 
-    async def _async_validate_credentials(self, email: str, password: str) -> str | None:
+    async def _async_validate_credentials(self, email: str, password: str) -> tuple[str | None, DaikinOne | None]:
         """Check the given credentials against the Daikin API.
 
-        Returns None if they're valid, or an error key to show on the form otherwise.
+        Returns (None, daikin) if they're valid, or (error_key, None) otherwise.
         """
         daikin = DaikinOne(DaikinUserCredentials(email, password))
         try:
@@ -36,8 +36,8 @@ class DaikinOneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except DaikinServiceException:
             # login() raises for anything other than rejected credentials (network error,
             # unexpected status, malformed response), so this isn't a credentials problem
-            return "cannot_connect"
-        return None if ok else "auth_failed"
+            return "cannot_connect", None
+        return (None, daikin) if ok else ("auth_failed", None)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         errors: dict[str, str] = {}
@@ -46,12 +46,23 @@ class DaikinOneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             email = user_input[CONF_EMAIL]
             password = user_input[CONF_PASSWORD]
 
-            error = await self._async_validate_credentials(email, password)
+            error, daikin = await self._async_validate_credentials(email, password)
             if error is not None:
                 errors["base"] = error
             else:
+                title = "Daikin One"
+                if daikin is not None:
+                    try:
+                        locations = await daikin.get_locations()
+                        if locations:
+                            primary_location = next(iter(locations.values()))
+                            if getattr(primary_location, "name", None):
+                                title = primary_location.name
+                    except Exception:
+                        log.warning("Failed to fetch location name for config entry title", exc_info=True)
+
                 return self.async_create_entry(
-                    title="Daikin One",
+                    title=title,
                     data={
                         CONF_EMAIL: email,
                         CONF_PASSWORD: password,
@@ -74,7 +85,7 @@ class DaikinOneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             email = user_input[CONF_EMAIL]
             password = user_input[CONF_PASSWORD]
 
-            error = await self._async_validate_credentials(email, password)
+            error, _ = await self._async_validate_credentials(email, password)
             if error is not None:
                 errors["base"] = error
             else:
