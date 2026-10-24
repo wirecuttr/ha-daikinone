@@ -218,3 +218,5 @@ class DaikinThermostat(DaikinDevice):
     air_quality_outdoor: DaikinOneAirQualitySensorOutdoor | None
     air_quality_indoor: DaikinOneAirQualitySensorIndoor | None
     equipment: dict[str, DaikinEquipment]
+    # Away Mode: True when geofencing away setback is active; None when unsupported
+    away_mode: bool | None = None

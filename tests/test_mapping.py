@@ -4,18 +4,21 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
+from custom_components.daikinone.client.mapping import map_thermostat
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinIndoorUnit,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
+    DaikinThermostatCapability,
     DaikinThermostatFanMode,
     DaikinThermostatFanSpeed,
     DaikinThermostatMode,
     DaikinThermostatStatus,
     DaikinUserCredentials,
 )
+from custom_components.daikinone.client.wire import DaikinDeviceDataResponse
 
 
 @pytest.fixture
@@ -491,3 +494,58 @@ class TestEnumSanitization:
             if isinstance(e, DaikinOutdoorUnit)
         )
         assert unit.crank_case_heater is DaikinOutdoorUnitHeaterStatus.UNKNOWN
+
+
+class TestMapThermostatAwayMode:
+    def test_map_thermostat_away_mode_active(self) -> None:
+        """Verify that geofencingAway: true maps to away_mode=True."""
+        device_data = _make_device()
+        device_data["data"]["geofencingAway"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is True
+
+    def test_map_thermostat_away_mode_inactive(self) -> None:
+        """Verify that geofencingAway: false maps to away_mode=False."""
+        device_data = _make_device()
+        device_data["data"]["geofencingAway"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is False
+
+    def test_map_thermostat_away_mode_absent(self) -> None:
+        """Verify that missing geofencingAway preserves away_mode=None (nullable guard)."""
+        device_data = _make_device()
+        device_data["data"].pop("geofencingAway", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is None
+
+
+class TestThermostatEmergencyHeatCapability:
+    """Test emergency heat capability detection with modeEmHeatAvailable guard (Issue #25)."""
+
+    def test_emergency_heat_capability_when_em_heat_available_true(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_omitted_when_em_heat_available_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+    def test_emergency_heat_capability_backward_compatibility_when_field_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"].pop("modeEmHeatAvailable", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_when_system_cap_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = False
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities

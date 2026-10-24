@@ -6,12 +6,14 @@ from homeassistant.components.climate import (
     ClimateEntityDescription,
 )
 from homeassistant.components.climate.const import (
-    HVACMode,
+    ATTR_TARGET_TEMP_HIGH,
+    ATTR_TARGET_TEMP_LOW,
+    FAN_OFF,
+    PRESET_AWAY,
+    PRESET_NONE,
     ClimateEntityFeature,
     HVACAction,
-    ATTR_TARGET_TEMP_LOW,
-    ATTR_TARGET_TEMP_HIGH,
-    FAN_OFF,
+    HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature, ATTR_TEMPERATURE
@@ -53,7 +55,9 @@ async def async_setup_entry(
 
 
 class DaikinOneThermostatPresetMode(Enum):
-    NONE = "none"
+    NONE = PRESET_NONE
+    AWAY = PRESET_AWAY
+    # Stage 1 Deprecated alias retained for non-breaking automation compatibility
     EMERGENCY_HEAT = "emergency_heat"
 
 
@@ -111,9 +115,10 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         self._attr_preset_modes = [DaikinOneThermostatPresetMode.NONE.value]
         self._attr_preset_mode = None
 
-        if DaikinThermostatCapability.EMERGENCY_HEAT in self._device.capabilities:
+        # Add Away preset if thermostat supports away mode
+        if self._device.away_mode is not None:
             self._attr_supported_features |= ClimateEntityFeature.PRESET_MODE
-            self._attr_preset_modes += [DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value]
+            self._attr_preset_modes.append(PRESET_AWAY)
 
     def get_hvac_modes(self) -> list[HVACMode]:
         modes: list[HVACMode] = []
@@ -153,9 +158,6 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
     async def set_thermostat_mode(self, target_mode: DaikinThermostatMode) -> None:
         log.debug("Setting thermostat mode to %s", target_mode)
 
-        # update thermostat mode
-        await self._data.daikin.set_thermostat_mode(self._device.id, target_mode)
-
         # update thermostat mode optimistically
         def update(t: DaikinThermostat):
             t.mode = target_mode
@@ -166,22 +168,44 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
             check=lambda t: t.mode == target_mode,
         )
 
-    async def async_set_preset_mode(self, preset_mode: str):
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set new target preset mode."""
         match preset_mode:
-            case DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value:
-                await self.set_thermostat_mode(DaikinThermostatMode.AUX_HEAT)
+            case DaikinOneThermostatPresetMode.AWAY.value:
+                log.debug("Setting thermostat away mode to True")
+
+                def update_away(t: DaikinThermostat) -> None:
+                    t.away_mode = True
+
+                await self.update_state_optimistically(
+                    operation=lambda: self._data.daikin.set_thermostat_away_mode(self._device.id, True),
+                    optimistic_update=update_away,
+                    check=lambda t: t.away_mode is True,
+                )
 
             case DaikinOneThermostatPresetMode.NONE.value:
-                match self._device.mode:
-                    # turning off emergency heat should set the thermostat mode to heat
-                    case DaikinThermostatMode.AUX_HEAT:
-                        await self.set_thermostat_mode(DaikinThermostatMode.HEAT)
+                # If away mode is active, disable away mode
+                if self._device.away_mode is True:
+                    log.debug("Setting thermostat away mode to False")
 
-                    # any other thermostat mode should already be "none", and if its not,
-                    # we don't need to do anything
-                    case _:
-                        pass
+                    def update_home(t: DaikinThermostat) -> None:
+                        t.away_mode = False
+
+                    await self.update_state_optimistically(
+                        operation=lambda: self._data.daikin.set_thermostat_away_mode(self._device.id, False),
+                        optimistic_update=update_home,
+                        check=lambda t: t.away_mode is False,
+                    )
+
+            case DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value:
+                log.warning(
+                    "Preset 'emergency_heat' on %s is deprecated and will be removed in v2.0. "
+                    "Please update your automations to use the dedicated switch entity "
+                    "'switch.%s_emergency_heat' instead.",
+                    self.entity_id or self._device.name,
+                    self._device.name.lower().replace(" ", "_"),
+                )
+                await self.set_thermostat_mode(DaikinThermostatMode.AUX_HEAT)
 
             case _:
                 raise ValueError(f"Attempted to set unsupported preset mode: {preset_mode}")
@@ -297,7 +321,6 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         self._attr_current_humidity = self._device.indoor_humidity
 
         # hvac current mode and preset
-        self._attr_preset_mode = DaikinOneThermostatPresetMode.NONE.value
         match self._device.mode:
             case DaikinThermostatMode.AUTO:
                 self._attr_hvac_mode = HVACMode.HEAT_COOL
@@ -307,9 +330,14 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
                 self._attr_hvac_mode = HVACMode.COOL
             case DaikinThermostatMode.AUX_HEAT:
                 self._attr_hvac_mode = HVACMode.HEAT
-                self._attr_preset_mode = DaikinOneThermostatPresetMode.EMERGENCY_HEAT.value
             case DaikinThermostatMode.OFF:
                 self._attr_hvac_mode = HVACMode.OFF
+
+        # Determine active preset mode
+        if self._device.away_mode is True:
+            self._attr_preset_mode = PRESET_AWAY
+        else:
+            self._attr_preset_mode = DaikinOneThermostatPresetMode.NONE.value
 
         # hvac current action
         match self._device.status:
