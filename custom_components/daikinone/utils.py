@@ -21,15 +21,15 @@ class Temperature(BaseModel):
         self._temp_c = round(temp_c, 1)
 
     @staticmethod
-    def from_celsius(temp_c: float) -> "Temperature":
+    def from_celsius(temp_c: float) -> Temperature:
         return Temperature(temp_c)
 
     @staticmethod
-    def from_fahrenheit(temp_f: float) -> "Temperature":
+    def from_fahrenheit(temp_f: float) -> Temperature:
         return Temperature((temp_f - 32) * 5 / 9)
 
     @staticmethod
-    def from_kelvin(temp_k: float) -> "Temperature":
+    def from_kelvin(temp_k: float) -> Temperature:
         return Temperature(temp_k - 273.15)
 
     @property

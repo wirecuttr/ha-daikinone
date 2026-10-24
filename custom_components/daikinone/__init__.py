@@ -9,16 +9,20 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.util import Throttle
 
+from custom_components.daikinone.client.client import DaikinOne
+from custom_components.daikinone.client.models import DaikinUserCredentials
 from custom_components.daikinone.const import (
     CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY,
-    PLATFORMS,
     DOMAIN,
     MANUFACTURER,
     MIN_TIME_BETWEEN_UPDATES,
+    PLATFORMS,
 )
-from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.models import DaikinUserCredentials
 from custom_components.daikinone.exceptions import DaikinAuthException, DaikinServiceException
+from custom_components.daikinone.services import (
+    async_register_services,
+    async_unregister_services,
+)
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +109,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN] = data
 
+    async_register_services(hass)
+
     # load platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -116,6 +122,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
         hass.data.pop(DOMAIN)
+        async_unregister_services(hass)
     return ok
 
 
@@ -125,7 +132,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if entry.version > 1:
         log.error(
-            "Incompatible downgrade detected, please restore from a earlier backup or remove and re-add the integration",
+            "Incompatible downgrade detected (%s.%s), please restore from a earlier backup or remove and re-add the integration",
             entry.version,
             entry.minor_version,
         )

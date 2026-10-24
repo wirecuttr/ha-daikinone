@@ -8,6 +8,8 @@ from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.binary_sensor import (
     CONSUMABLE_ALERT_CONFIGS,
     DaikinOneConsumableAlertBinarySensor,
+)
+from custom_components.daikinone.binary_sensor import (
     async_setup_entry as async_setup_binary_sensors,
 )
 from custom_components.daikinone.client.client import DaikinOne
@@ -16,6 +18,8 @@ from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERS
 from custom_components.daikinone.sensor import (
     CONSUMABLE_SENSOR_CONFIGS,
     DaikinOneConsumableLifeSensor,
+)
+from custom_components.daikinone.sensor import (
     async_setup_entry as async_setup_sensors,
 )
 from tests.test_mapping import _make_device

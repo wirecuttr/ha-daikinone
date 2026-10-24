@@ -17,7 +17,6 @@ from custom_components.daikinone.client.wire import (
     UnitTypeField,
 )
 
-
 # --- Thermostat field catalog ---
 
 F_TEMP_INDOOR = CelsiusField("tempIndoor")

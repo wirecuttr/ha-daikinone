@@ -16,9 +16,9 @@ from custom_components.daikinone.client.models import (
 from custom_components.daikinone.client.wire import DaikinDeviceDataResponse
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.select import (
+    FAN_CIRCULATE_DUTY_CYCLE_OPTIONS,
     DaikinOneFanCirculationDutyCycleSelect,
     DaikinOneFanSpeedSelect,
-    FAN_CIRCULATE_DUTY_CYCLE_OPTIONS,
     async_setup_entry,
 )
 from tests.test_mapping import _make_device

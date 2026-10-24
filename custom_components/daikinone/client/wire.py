@@ -19,7 +19,6 @@ from pydantic import BaseModel
 
 from custom_components.daikinone.utils import Temperature
 
-
 # --- URLs ---
 
 DAIKIN_API_URL_BASE = "https://api.daikinskyport.com"

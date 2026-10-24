@@ -1,13 +1,13 @@
 import logging
-import backoff
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
+import backoff
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from custom_components.daikinone import DaikinOneData
-from custom_components.daikinone.const import DOMAIN, MANUFACTURER
 from custom_components.daikinone.client.models import DaikinDevice, DaikinEquipment, DaikinThermostat
+from custom_components.daikinone.const import DOMAIN, MANUFACTURER
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class DaikinOneEntity[D: DaikinDevice](Entity):
                     return False
             case _:
                 if hasattr(self._device, "online"):
-                    return bool(getattr(self._device, "online"))
+                    return bool(self._device.online)
                 return True
 
     async def async_update(self, no_throttle: bool = False) -> None:

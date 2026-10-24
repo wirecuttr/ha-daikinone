@@ -1,16 +1,19 @@
 """Pure functions that turn a Daikin device-data payload into domain models."""
 
-from datetime import UTC, datetime
 import json
 import logging
 import math
+from datetime import UTC, datetime
 from typing import Any
 
 from custom_components.daikinone.client import fields as f
 from custom_components.daikinone.client.models import (
-    DaikinEquipmentError,
+    DAIKIN_DAY_PREFIXES,
+    SCHEDULE_PARTS,
+    DaikinDaySchedule,
     DaikinEEVCoil,
     DaikinEquipment,
+    DaikinEquipmentError,
     DaikinHeatSource,
     DaikinIndoorUnit,
     DaikinLocation,
@@ -19,6 +22,7 @@ from custom_components.daikinone.client.models import (
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
+    DaikinSchedulePeriod,
     DaikinSystemError,
     DaikinThermostat,
     DaikinThermostatCapability,
@@ -36,6 +40,7 @@ from custom_components.daikinone.client.wire import (
     capitalize,
     read,
 )
+from custom_components.daikinone.utils import Temperature
 
 log = logging.getLogger(__name__)
 
@@ -209,10 +214,7 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         status=DaikinThermostatStatus(payload.data["equipmentStatus"]),
         fan_mode=DaikinThermostatFanMode(payload.data["fanCirculate"]),
         fan_speed=DaikinThermostatFanSpeed(payload.data["fanCirculateSpeed"]),
-        schedule=DaikinThermostatSchedule(
-            enabled=payload.data["schedEnabled"],
-            override=bool(payload.data.get("schedOverride", 0)),
-        ),
+        schedule=map_thermostat_schedule(payload.data),
         indoor_temperature=read(payload.data, f.F_TEMP_INDOOR),
         indoor_humidity=read(payload.data, f.F_HUM_INDOOR),
         set_point_heat=read(payload.data, f.F_SETPOINT_HEAT),
@@ -299,6 +301,105 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         system_errors=map_system_errors(payload.data),
         sched_resume_time=sched_resume_time,
         sched_override_duration=sched_override_duration,
+    )
+
+
+def map_thermostat_schedule(data: dict[str, Any]) -> DaikinThermostatSchedule:
+    """Parse thermostat schedule state and 7-day x 6-part schedule matrix from raw payload data."""
+    enabled = bool(data["schedEnabled"])
+    override = bool(data.get("schedOverride", 0))
+
+    raw_delta = data.get("tempDeltaMin", 2.0)
+    try:
+        min_temp_delta = float(raw_delta) if raw_delta is not None else 2.0
+    except ValueError, TypeError:
+        min_temp_delta = 2.0
+
+    sched_hsp_raw = data.get("hspSched")
+    scheduled_heat = (
+        Temperature.from_celsius(float(sched_hsp_raw))
+        if isinstance(sched_hsp_raw, (int, float)) and -60 <= float(sched_hsp_raw) <= 80
+        else None
+    )
+
+    sched_csp_raw = data.get("cspSched")
+    scheduled_cool = (
+        Temperature.from_celsius(float(sched_csp_raw))
+        if isinstance(sched_csp_raw, (int, float)) and -60 <= float(sched_csp_raw) <= 80
+        else None
+    )
+
+    days: dict[str, DaikinDaySchedule] = {}
+    has_any_schedule_keys = False
+
+    for day_key, day_prefix in DAIKIN_DAY_PREFIXES.items():
+        periods: dict[int, DaikinSchedulePeriod] = {}
+        for part in SCHEDULE_PARTS:
+            prefix = f"sched{day_prefix}Part{part}"
+            time_key = f"{prefix}Time"
+            enabled_key = f"{prefix}Enabled"
+            hsp_key = f"{prefix}hsp"
+            csp_key = f"{prefix}csp"
+            label_key = f"{prefix}Label"
+            action_key = f"{prefix}Action"
+
+            if time_key not in data and enabled_key not in data and hsp_key not in data and csp_key not in data:
+                continue
+
+            has_any_schedule_keys = True
+
+            raw_slot = data.get(time_key, 0)
+            try:
+                slot = int(raw_slot)
+            except ValueError, TypeError:
+                slot = 0
+            # Guard against U8 sentinel (255) or out-of-bounds slots
+            if not (0 <= slot <= 95):
+                slot = 0
+
+            part_enabled = bool(data.get(enabled_key, False))
+
+            raw_hsp = data.get(hsp_key, 20.0)
+            try:
+                hsp_c = float(raw_hsp)
+            except ValueError, TypeError:
+                hsp_c = 20.0
+
+            raw_csp = data.get(csp_key, 24.0)
+            try:
+                csp_c = float(raw_csp)
+            except ValueError, TypeError:
+                csp_c = 24.0
+
+            raw_label = data.get(label_key, "")
+            label = str(raw_label).strip() if raw_label is not None else ""
+
+            raw_action = data.get(action_key, 0)
+            try:
+                action = int(raw_action)
+            except ValueError, TypeError:
+                action = 0
+
+            periods[part] = DaikinSchedulePeriod(
+                part=part,
+                enabled=part_enabled,
+                start_slot=slot,
+                heat_setpoint=Temperature.from_celsius(hsp_c),
+                cool_setpoint=Temperature.from_celsius(csp_c),
+                label=label,
+                action=action,
+            )
+
+        if periods:
+            days[day_key] = DaikinDaySchedule(day=day_key, periods=periods)
+
+    return DaikinThermostatSchedule(
+        enabled=enabled,
+        override=override,
+        days=days if has_any_schedule_keys else None,
+        min_temp_delta=min_temp_delta,
+        scheduled_heat_setpoint=scheduled_heat,
+        scheduled_cool_setpoint=scheduled_cool,
     )
 
 

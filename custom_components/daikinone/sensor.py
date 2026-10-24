@@ -1,29 +1,27 @@
-from datetime import datetime
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    EntityCategory,
-    UnitOfTemperature,
-    PERCENTAGE,
-    UnitOfPower,
-    UnitOfTime,
-    UnitOfPressure,
-    UnitOfElectricCurrent,
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfPower,
+    UnitOfPressure,
+    UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
-from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
-from custom_components.daikinone.entity import DaikinOneEntity
 from custom_components.daikinone.client.mapping import determine_heat_source
 from custom_components.daikinone.client.models import (
     DaikinDevice,
@@ -37,6 +35,8 @@ from custom_components.daikinone.client.models import (
     DaikinThermostat,
     DaikinThermostatCapability,
 )
+from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
+from custom_components.daikinone.entity import DaikinOneEntity
 
 log = logging.getLogger(__name__)
 
@@ -1131,7 +1131,11 @@ async def async_setup_entry(
 
 class DaikinOneSensor[D: DaikinDevice](DaikinOneEntity[D], SensorEntity):
     def __init__(
-        self, description: SensorEntityDescription, data: DaikinOneData, device: D, attribute: Callable[[D], StateType]
+        self,
+        description: SensorEntityDescription,
+        data: DaikinOneData,
+        device: D,
+        attribute: Callable[[D], StateType | datetime],
     ) -> None:
         """Initialize the sensor."""
         super().__init__(data, device)
@@ -1146,7 +1150,7 @@ class DaikinOneThermostatSensor(DaikinOneSensor[DaikinThermostat]):
         description: SensorEntityDescription,
         data: DaikinOneData,
         device: DaikinThermostat,
-        attribute: Callable[[DaikinThermostat], StateType],
+        attribute: Callable[[DaikinThermostat], StateType | datetime],
     ) -> None:
         super().__init__(description, data, device, attribute)
 

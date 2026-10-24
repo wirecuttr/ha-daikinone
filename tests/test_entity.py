@@ -8,13 +8,13 @@ from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription
 
 from custom_components.daikinone import DaikinOneData
-from custom_components.daikinone.climate import DaikinOneThermostat
 from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
     DaikinIndoorUnit,
     DaikinThermostat,
     DaikinUserCredentials,
 )
+from custom_components.daikinone.climate import DaikinOneThermostat
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY, DOMAIN
 from custom_components.daikinone.entity import DaikinOneEntity, DaikinOneThermostatEntity
 from custom_components.daikinone.select import (

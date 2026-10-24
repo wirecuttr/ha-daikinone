@@ -56,57 +56,59 @@ class DaikinTransport:
         """
         log.info("Logging in to Daikin API")
         try:
-            async with aiohttp.ClientSession(
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                }
-            ) as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession(
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                    }
+                ) as session,
+                session.post(
                     url=DAIKIN_API_URL_LOGIN,
                     json={"email": self._creds.email, "password": self._creds.password},
-                ) as response:
-                    if response.status != 200:
-                        body = await response.text()
-                        log.error(f"Request to login failed: status={response.status} body={body}")
-                        self._invalidate_auth()
-                        if response.status in _AUTH_FAILURE_STATUSES:
-                            return False
-                        raise DaikinServiceException(
-                            f"Failed to log in to Daikin API: status={response.status} body={body}",
-                            status=response.status,
-                        )
+                ) as response,
+            ):
+                if response.status != 200:
+                    body = await response.text()
+                    log.error(f"Request to login failed: status={response.status} body={body}")
+                    self._invalidate_auth()
+                    if response.status in _AUTH_FAILURE_STATUSES:
+                        return False
+                    raise DaikinServiceException(
+                        f"Failed to log in to Daikin API: status={response.status} body={body}",
+                        status=response.status,
+                    )
 
-                    payload = await response.json()
-                    if not isinstance(payload, dict):
-                        log.error(f"Unexpected login response payload type: {type(payload).__name__}")
-                        self._invalidate_auth()
-                        raise DaikinServiceException(
-                            f"Login response was not a JSON object: {type(payload).__name__}",
-                            status=response.status,
-                        )
+                payload = await response.json()
+                if not isinstance(payload, dict):
+                    log.error(f"Unexpected login response payload type: {type(payload).__name__}")
+                    self._invalidate_auth()
+                    raise DaikinServiceException(
+                        f"Login response was not a JSON object: {type(payload).__name__}",
+                        status=response.status,
+                    )
 
-                    refresh_token = payload.get("refreshToken")
-                    access_token = payload.get("accessToken")
+                refresh_token = payload.get("refreshToken")
+                access_token = payload.get("accessToken")
 
-                    if refresh_token is None:
-                        log.error("No refresh token found in login response")
-                        self._invalidate_auth()
-                        raise DaikinServiceException(
-                            "Login response did not include a refresh token", status=response.status
-                        )
-                    if access_token is None:
-                        log.error("No access token found in login response")
-                        self._invalidate_auth()
-                        raise DaikinServiceException(
-                            "Login response did not include an access token", status=response.status
-                        )
+                if refresh_token is None:
+                    log.error("No refresh token found in login response")
+                    self._invalidate_auth()
+                    raise DaikinServiceException(
+                        "Login response did not include a refresh token", status=response.status
+                    )
+                if access_token is None:
+                    log.error("No access token found in login response")
+                    self._invalidate_auth()
+                    raise DaikinServiceException(
+                        "Login response did not include an access token", status=response.status
+                    )
 
-                    self._auth.refresh_token = refresh_token
-                    self._auth.access_token = access_token
-                    self._auth.authenticated = True
+                self._auth.refresh_token = refresh_token
+                self._auth.access_token = access_token
+                self._auth.authenticated = True
 
-                    return True
+                return True
 
         except _AUTH_TRANSPORT_ERRORS as e:
             log.error(f"Request to login failed: {e}")
@@ -135,57 +137,57 @@ class DaikinTransport:
 
         token = self._auth.access_token
         log.debug(f"Sending request to Daikin API: {method} {url}")
-        async with aiohttp.ClientSession(
-            headers={
-                "Accept": "application/json",
-                "Authorization": f"Bearer {token}",
-            }
-        ) as session:
-            async with session.request(method, url, json=body) as response:
-                log.debug(f"Got response: {response.status}")
+        async with (
+            aiohttp.ClientSession(
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {token}",
+                }
+            ) as session,
+            session.request(method, url, json=body) as response,
+        ):
+            log.debug(f"Got response: {response.status}")
 
-                if response.status == 200:
-                    try:
-                        return await response.json()
-                    except (ClientError, ValueError) as e:
-                        # a malformed or unexpected-content-type body on an otherwise successful
-                        # response: raise our own exception type instead of letting a raw
-                        # aiohttp/stdlib error escape, so callers only ever see DaikinServiceException
-                        # or DaikinAuthException (e.g. ConfigEntryNotReady classification during setup)
-                        raise DaikinServiceException(
-                            f"Failed to parse Daikin API response: method={method} url={url}: {e}",
-                            status=response.status,
-                        ) from e
-
-                if response.status in _AUTH_FAILURE_STATUSES:
-                    if retry:
-                        log.info(f"Request rejected with status {response.status}, attempting to re-authenticate")
-                        if not await self._reauthenticate(token):
-                            log.error(f"Unable to re-authenticate with Daikin API after status {response.status}")
-                            raise DaikinAuthException(
-                                f"Unable to re-authenticate with Daikin API after status {response.status}",
-                                status=response.status,
-                            )
-                        return await self.request(url, method, body, retry=False)
-
-                    # the retried request, using a freshly (re)authenticated token, was still
-                    # rejected: this is an auth failure, not a generic service error, even though
-                    # the one-retry cap means we won't attempt re-authentication again
-                    body_text = await response.text()
-                    log.error(
-                        f"Request rejected with status {response.status} even after re-authenticating: {body_text}"
-                    )
-                    raise DaikinAuthException(
-                        f"Daikin API rejected the request with status {response.status} even after "
-                        f"re-authenticating: method={method} url={url}",
+            if response.status == 200:
+                try:
+                    return await response.json()
+                except (ClientError, ValueError) as e:
+                    # a malformed or unexpected-content-type body on an otherwise successful
+                    # response: raise our own exception type instead of letting a raw
+                    # aiohttp/stdlib error escape, so callers only ever see DaikinServiceException
+                    # or DaikinAuthException (e.g. ConfigEntryNotReady classification during setup)
+                    raise DaikinServiceException(
+                        f"Failed to parse Daikin API response: method={method} url={url}: {e}",
                         status=response.status,
-                    )
+                    ) from e
 
-                raise DaikinServiceException(
-                    f"Failed to send request to Daikin API: method={method} url={url} body={json.dumps(body)}, "
-                    f"response_code={response.status} response_body={await response.text()}",
+            if response.status in _AUTH_FAILURE_STATUSES:
+                if retry:
+                    log.info(f"Request rejected with status {response.status}, attempting to re-authenticate")
+                    if not await self._reauthenticate(token):
+                        log.error(f"Unable to re-authenticate with Daikin API after status {response.status}")
+                        raise DaikinAuthException(
+                            f"Unable to re-authenticate with Daikin API after status {response.status}",
+                            status=response.status,
+                        )
+                    return await self.request(url, method, body, retry=False)
+
+                # the retried request, using a freshly (re)authenticated token, was still
+                # rejected: this is an auth failure, not a generic service error, even though
+                # the one-retry cap means we won't attempt re-authentication again
+                body_text = await response.text()
+                log.error(f"Request rejected with status {response.status} even after re-authenticating: {body_text}")
+                raise DaikinAuthException(
+                    f"Daikin API rejected the request with status {response.status} even after "
+                    f"re-authenticating: method={method} url={url}",
                     status=response.status,
                 )
+
+            raise DaikinServiceException(
+                f"Failed to send request to Daikin API: method={method} url={url} body={json.dumps(body)}, "
+                f"response_code={response.status} response_body={await response.text()}",
+                status=response.status,
+            )
 
     async def _reauthenticate(self, stale_token: str | None) -> bool:
         """Recover a usable access token: try a refresh first, then fall back to a full login."""
@@ -205,47 +207,48 @@ class DaikinTransport:
 
         log.debug("Refreshing access token")
         try:
-            async with aiohttp.ClientSession(
-                headers={"Accept": "application/json", "Content-Type": "application/json"}
-            ) as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession(
+                    headers={"Accept": "application/json", "Content-Type": "application/json"}
+                ) as session,
+                session.post(
                     url=DAIKIN_API_URL_REFRESH_TOKEN,
                     json={
                         "email": self._creds.email,
                         "refreshToken": self._auth.refresh_token,
                     },
-                ) as response:
-                    if response.status != 200:
-                        log.error(
-                            f"Request to refresh access token failed: "
-                            f"status={response.status} body={await response.text()}"
-                        )
-                        self._auth.authenticated = False
-                        return False
+                ) as response,
+            ):
+                if response.status != 200:
+                    log.error(
+                        f"Request to refresh access token failed: status={response.status} body={await response.text()}"
+                    )
+                    self._auth.authenticated = False
+                    return False
 
-                    payload = await response.json()
-                    if not isinstance(payload, dict):
-                        log.error(f"Unexpected refresh response payload type: {type(payload).__name__}")
-                        self._auth.authenticated = False
-                        return False
+                payload = await response.json()
+                if not isinstance(payload, dict):
+                    log.error(f"Unexpected refresh response payload type: {type(payload).__name__}")
+                    self._auth.authenticated = False
+                    return False
 
-                    access_token = payload.get("accessToken")
+                access_token = payload.get("accessToken")
 
-                    if access_token is None:
-                        log.error("No access token found in refresh response")
-                        self._auth.authenticated = False
-                        return False
+                if access_token is None:
+                    log.error("No access token found in refresh response")
+                    self._auth.authenticated = False
+                    return False
 
-                    # rotate the refresh token too, in case the API issues a new one on use
-                    refresh_token = payload.get("refreshToken")
-                    if refresh_token is not None:
-                        self._auth.refresh_token = refresh_token
+                # rotate the refresh token too, in case the API issues a new one on use
+                refresh_token = payload.get("refreshToken")
+                if refresh_token is not None:
+                    self._auth.refresh_token = refresh_token
 
-                    log.info("Refreshed access token")
-                    self._auth.access_token = access_token
-                    self._auth.authenticated = True
+                log.info("Refreshed access token")
+                self._auth.access_token = access_token
+                self._auth.authenticated = True
 
-                    return True
+                return True
 
         except _AUTH_TRANSPORT_ERRORS as e:
             log.error(f"Request to refresh access token failed: {e}")

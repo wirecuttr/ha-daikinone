@@ -6,7 +6,11 @@ from typing import Any
 
 from custom_components.daikinone.client.mapping import map_location, map_thermostat
 from custom_components.daikinone.client.models import (
+    DAIKIN_DAY_PREFIXES,
+    SCHEDULE_PARTS,
+    DaikinDaySchedule,
     DaikinLocation,
+    DaikinSchedulePeriod,
     DaikinThermostat,
     DaikinThermostatFanCirculateDuration,
     DaikinThermostatFanMode,
@@ -29,14 +33,14 @@ log = logging.getLogger(__name__)
 class DaikinOne:
     """Manages connection to Daikin API and fetching device data."""
 
-    __thermostats: dict[str, DaikinThermostat] = dict()
-    __locations: dict[str, DaikinLocation] = dict()
+    __thermostats: dict[str, DaikinThermostat] = {}  # noqa: RUF012
+    __locations: dict[str, DaikinLocation] = {}  # noqa: RUF012
 
     def __init__(self, creds: DaikinUserCredentials) -> None:
         self._transport = DaikinTransport(creds)
         self._unsupported_device_ids: set[str] = set()
-        self.__locations: dict[str, DaikinLocation] = dict()
-        self.__thermostats: dict[str, DaikinThermostat] = dict()
+        self.__locations: dict[str, DaikinLocation] = {}
+        self.__thermostats: dict[str, DaikinThermostat] = {}
 
     async def login(self) -> bool:
         return await self._transport.login()
@@ -68,7 +72,7 @@ class DaikinOne:
         if not self.__locations:
             try:
                 await self.get_locations()
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 log.warning("Failed to fetch locations: %s", err)
 
         raw = await self._transport.request(DAIKIN_API_URL_DEVICE_DATA)
@@ -253,3 +257,79 @@ class DaikinOne:
             method="PUT",
             body={"auxHeatLockoutTemp": temp},
         )
+
+    async def set_thermostat_schedule(self, thermostat_id: str, payload: dict[str, Any]) -> None:
+        """Send an atomic batch PUT request to update thermostat schedule keys and update cache."""
+        if not payload:
+            raise ValueError("Schedule payload must not be empty")
+
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body=payload,
+        )
+
+        # Optimistically apply the modified wire keys to the in-memory cached thermostat
+        self._apply_optimistic_schedule_payload(thermostat_id, payload)
+
+    def _apply_optimistic_schedule_payload(self, thermostat_id: str, payload: dict[str, Any]) -> None:
+        """Update the cached DaikinThermostat.schedule in place from a wire key payload."""
+        thermostat = self.__thermostats.get(thermostat_id)
+        if thermostat is None:
+            return
+
+        if "schedEnabled" in payload:
+            thermostat.schedule.enabled = bool(payload["schedEnabled"])
+        if "schedOverride" in payload:
+            thermostat.schedule.override = bool(payload["schedOverride"])
+
+        if thermostat.schedule.days is None:
+            thermostat.schedule.days = {}
+
+        for day_key, day_prefix in DAIKIN_DAY_PREFIXES.items():
+            for part in SCHEDULE_PARTS:
+                prefix = f"sched{day_prefix}Part{part}"
+                time_key = f"{prefix}Time"
+                enabled_key = f"{prefix}Enabled"
+                hsp_key = f"{prefix}hsp"
+                csp_key = f"{prefix}csp"
+                label_key = f"{prefix}Label"
+                action_key = f"{prefix}Action"
+
+                if not any(k in payload for k in (time_key, enabled_key, hsp_key, csp_key, label_key, action_key)):
+                    continue
+
+                day_sched = thermostat.schedule.days.get(day_key)
+                if day_sched is None:
+                    day_sched = DaikinDaySchedule(day=day_key, periods={})
+                    thermostat.schedule.days[day_key] = day_sched
+
+                existing = day_sched.periods.get(part)
+                new_slot = int(payload[time_key]) if time_key in payload else (existing.start_slot if existing else 0)
+                new_enabled = (
+                    bool(payload[enabled_key]) if enabled_key in payload else (existing.enabled if existing else False)
+                )
+                new_hsp = (
+                    Temperature.from_celsius(float(payload[hsp_key]))
+                    if hsp_key in payload
+                    else (existing.heat_setpoint if existing else Temperature.from_celsius(20.0))
+                )
+                new_csp = (
+                    Temperature.from_celsius(float(payload[csp_key]))
+                    if csp_key in payload
+                    else (existing.cool_setpoint if existing else Temperature.from_celsius(24.0))
+                )
+                new_label = (
+                    str(payload[label_key]).strip() if label_key in payload else (existing.label if existing else "")
+                )
+                new_action = int(payload[action_key]) if action_key in payload else (existing.action if existing else 0)
+
+                day_sched.periods[part] = DaikinSchedulePeriod(
+                    part=part,
+                    enabled=new_enabled,
+                    start_slot=new_slot,
+                    heat_setpoint=new_hsp,
+                    cool_setpoint=new_csp,
+                    label=new_label,
+                    action=new_action,
+                )

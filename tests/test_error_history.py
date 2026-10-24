@@ -20,6 +20,8 @@ from custom_components.daikinone.sensor import (
     ACTION_PROMPT_MESSAGE,
     DaikinOneEquipmentErrorHistorySensor,
     DaikinOneSystemErrorHistorySensor,
+)
+from custom_components.daikinone.sensor import (
     async_setup_entry as async_setup_sensors,
 )
 from tests.test_mapping import _make_device

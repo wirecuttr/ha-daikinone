@@ -95,7 +95,7 @@ class TestAsyncStepReauth:
         assert result["step_id"] == "reauth_confirm"
 
     async def test_reauth_confirm_updates_entry_and_reloads_on_success(self) -> None:
-        flow, entry = _flow_with_reauth_entry()
+        flow, _entry = _flow_with_reauth_entry()
         flow.async_update_reload_and_abort = MagicMock(  # type: ignore[method-assign]
             return_value={"type": FlowResultType.ABORT, "reason": "reauth_successful"}
         )

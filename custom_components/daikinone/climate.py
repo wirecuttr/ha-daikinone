@@ -1,5 +1,5 @@
-from enum import Enum
 import logging
+from enum import Enum
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -17,19 +17,19 @@ from homeassistant.components.climate.const import (
     HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature, ATTR_TEMPERATURE
+from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from custom_components.daikinone import DaikinOneData, DOMAIN
-from custom_components.daikinone.entity import DaikinOneEntity
+from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.client.models import (
     DaikinThermostat,
     DaikinThermostatCapability,
+    DaikinThermostatFanMode,
     DaikinThermostatMode,
     DaikinThermostatStatus,
-    DaikinThermostatFanMode,
 )
+from custom_components.daikinone.entity import DaikinOneEntity
 from custom_components.daikinone.utils import Temperature
 
 log = logging.getLogger(__name__)
@@ -328,9 +328,8 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
 
     def _is_heating_startup(self) -> bool:
         outdoor = self._device.outdoor
-        if outdoor is not None and outdoor.mode is not None:
-            if "heating startup" in outdoor.mode.lower():
-                return True
+        if outdoor is not None and outdoor.mode is not None and "heating startup" in outdoor.mode.lower():
+            return True
         indoor = self._device.indoor
         heat_demand = 0
         if outdoor is not None and outdoor.heat_demand_percent is not None:
@@ -340,9 +339,7 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         elif indoor is not None and indoor.heat_demand_requested_percent is not None:
             heat_demand = indoor.heat_demand_requested_percent
 
-        if indoor is not None and heat_demand > 0 and (indoor.current_airflow or 0) == 0:
-            return True
-        return False
+        return bool(indoor is not None and heat_demand > 0 and (indoor.current_airflow or 0) == 0)
 
     def update_entity_attributes(self) -> None:
         self._attr_current_temperature = (

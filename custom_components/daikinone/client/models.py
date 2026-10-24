@@ -68,7 +68,7 @@ class DaikinOutdoorUnitReversingValveStatus(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinOutdoorUnitReversingValveStatus":
+    def _missing_(cls, value: object) -> DaikinOutdoorUnitReversingValveStatus:
         return cls.UNKNOWN
 
 
@@ -78,7 +78,7 @@ class DaikinOutdoorUnitHeaterStatus(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinOutdoorUnitHeaterStatus":
+    def _missing_(cls, value: object) -> DaikinOutdoorUnitHeaterStatus:
         return cls.UNKNOWN
 
 
@@ -130,7 +130,7 @@ class DaikinOneAirQualitySensorSummaryLevel(Enum):
     HAZARDOUS = 5
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinOneAirQualitySensorSummaryLevel":
+    def _missing_(cls, value: object) -> DaikinOneAirQualitySensorSummaryLevel:
         return cls.UNKNOWN
 
 
@@ -184,7 +184,7 @@ class DaikinThermostatMode(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatMode":
+    def _missing_(cls, value: object) -> DaikinThermostatMode:
         return cls.UNKNOWN
 
 
@@ -197,14 +197,61 @@ class DaikinThermostatStatus(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatStatus":
+    def _missing_(cls, value: object) -> DaikinThermostatStatus:
         return cls.UNKNOWN
+
+
+SCHEDULE_DAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+DAIKIN_DAY_PREFIXES: dict[str, str] = {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun",
+}
+SCHEDULE_PARTS: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
+
+
+@dataclass
+class DaikinSchedulePeriod:
+    """Represents one of the 6 daily schedule periods on a Daikin thermostat."""
+
+    part: int
+    enabled: bool
+    start_slot: int
+    heat_setpoint: Temperature
+    cool_setpoint: Temperature
+    label: str = ""
+    action: int = 0
+
+    @property
+    def start_time_str(self) -> str:
+        """Return the start time formatted as HH:MM (00:00 to 23:45)."""
+        clamped = max(0, min(95, self.start_slot))
+        total_minutes = clamped * 15
+        return f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+
+
+@dataclass
+class DaikinDaySchedule:
+    """Represents the 6 schedule periods for a single day of the week."""
+
+    day: str
+    periods: dict[int, DaikinSchedulePeriod]
 
 
 @dataclass
 class DaikinThermostatSchedule:
+    """Represents the thermostat schedule state and 7-day x 6-period matrix."""
+
     enabled: bool
     override: bool = False
+    days: dict[str, DaikinDaySchedule] | None = None
+    min_temp_delta: float = 2.0
+    scheduled_heat_setpoint: Temperature | None = None
+    scheduled_cool_setpoint: Temperature | None = None
 
 
 class DaikinThermostatFanMode(Enum):
@@ -214,7 +261,7 @@ class DaikinThermostatFanMode(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatFanMode":
+    def _missing_(cls, value: object) -> DaikinThermostatFanMode:
         return cls.UNKNOWN
 
 
@@ -225,7 +272,7 @@ class DaikinThermostatFanSpeed(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatFanSpeed":
+    def _missing_(cls, value: object) -> DaikinThermostatFanSpeed:
         return cls.UNKNOWN
 
 
@@ -238,7 +285,7 @@ class DaikinThermostatFanCirculateDuration(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatFanCirculateDuration":
+    def _missing_(cls, value: object) -> DaikinThermostatFanCirculateDuration:
         return cls.UNKNOWN
 
 

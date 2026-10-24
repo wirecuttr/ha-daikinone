@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -10,7 +10,6 @@ from custom_components.daikinone.client.mapping import (
     map_location,
     map_thermostat,
 )
-from custom_components.daikinone.client.wire import DaikinDeviceDataResponse, DaikinLocationResponse
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
     DaikinHeatSource,
@@ -27,6 +26,7 @@ from custom_components.daikinone.client.models import (
     DaikinThermostatStatus,
     DaikinUserCredentials,
 )
+from custom_components.daikinone.client.wire import DaikinDeviceDataResponse, DaikinLocationResponse
 
 
 @pytest.fixture
@@ -946,6 +946,124 @@ class TestMapLocation:
 
 
 class TestThermostatScheduleMapping:
+    """Tests for 7-day x 6-period thermostat schedule mapping in mapping.py."""
+
+    @staticmethod
+    def _build_full_42_slot_schedule_data() -> dict[str, Any]:
+        """Generate a complete 252-key schedule block matching live Daikin One+ telemetry."""
+        sched: dict[str, Any] = {
+            "schedEnabled": True,
+            "schedOverride": 0,
+            "tempDeltaMin": 2,
+            "hspSched": 18.0,
+            "cspSched": 24.0,
+        }
+        days = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        default_parts = [
+            (1, True, 24, 20.0, 24.0, "wake"),
+            (2, True, 51, 20.0, 24.0, "afternoon"),
+            (3, True, 68, 20.0, 24.0, "dinner"),
+            (4, True, 76, 20.0, 24.0, "evening"),
+            (5, True, 84, 18.0, 24.0, "sleep"),
+            (6, False, 0, 17.5, 22.0, ""),
+        ]
+        for day in days:
+            for part, enabled, slot, hsp, csp, label in default_parts:
+                prefix = f"sched{day}Part{part}"
+                sched[f"{prefix}Action"] = 0
+                sched[f"{prefix}Enabled"] = enabled
+                sched[f"{prefix}Label"] = label
+                sched[f"{prefix}Time"] = slot
+                sched[f"{prefix}hsp"] = hsp
+                sched[f"{prefix}csp"] = csp
+        return sched
+
+    async def test_full_42_slot_schedule_mapped(self, daikin_client: DaikinOne) -> None:
+        """Verify all 7 days and 6 periods per day are accurately parsed into domain models."""
+        device_data = _make_device(self._build_full_42_slot_schedule_data())
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is False
+        assert thermostat.schedule.min_temp_delta == 2.0
+        assert thermostat.schedule.scheduled_heat_setpoint is not None
+        assert thermostat.schedule.scheduled_heat_setpoint.celsius == 18.0
+        assert thermostat.schedule.scheduled_cool_setpoint is not None
+        assert thermostat.schedule.scheduled_cool_setpoint.celsius == 24.0
+
+        assert thermostat.schedule.days is not None
+        assert set(thermostat.schedule.days.keys()) == {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+        mon = thermostat.schedule.days["mon"]
+        assert len(mon.periods) == 6
+
+        p1 = mon.periods[1]
+        assert p1.part == 1
+        assert p1.enabled is True
+        assert p1.start_slot == 24
+        assert p1.start_time_str == "06:00"
+        assert p1.heat_setpoint.celsius == 20.0
+        assert p1.cool_setpoint.celsius == 24.0
+        assert p1.label == "wake"
+        assert p1.action == 0
+
+        p2 = mon.periods[2]
+        assert p2.start_slot == 51
+        assert p2.start_time_str == "12:45"
+
+        p6 = mon.periods[6]
+        assert p6.part == 6
+        assert p6.enabled is False
+        assert p6.start_slot == 0
+        assert p6.start_time_str == "00:00"
+        assert p6.heat_setpoint.celsius == 17.5
+        assert p6.cool_setpoint.celsius == 22.0
+        assert p6.label == ""
+
+    async def test_schedule_days_none_when_no_part_keys_in_payload(self, daikin_client: DaikinOne) -> None:
+        """Verify schedule.days is None when payload only has schedEnabled and no sched<Day>Part<N> keys."""
+        device_data = _make_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is False
+        assert thermostat.schedule.days is None
+
+    async def test_schedule_handles_sentinel_or_invalid_slot_values_gracefully(self, daikin_client: DaikinOne) -> None:
+        """Verify out-of-range slots (e.g. 255 sentinel) clamp/reset to 0 without crashing."""
+        sched_data = {
+            "schedMonPart1Time": 255,
+            "schedMonPart1Enabled": False,
+            "schedMonPart1hsp": "invalid",
+            "schedMonPart1csp": None,
+            "schedMonPart1Label": None,
+            "tempDeltaMin": "bad",
+        }
+        device_data = _make_device(sched_data)
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.min_temp_delta == 2.0
+        assert thermostat.schedule.days is not None
+        p1 = thermostat.schedule.days["mon"].periods[1]
+        assert p1.start_slot == 0
+        assert p1.start_time_str == "00:00"
+        assert p1.enabled is False
+        assert p1.heat_setpoint.celsius == 20.0
+        assert p1.cool_setpoint.celsius == 24.0
+        assert p1.label == ""
+
     async def test_thermostat_schedule_defaults_when_unpopulated(self, daikin_client: DaikinOne) -> None:
         device_data = _make_device()
 
@@ -976,7 +1094,7 @@ class TestThermostatScheduleMapping:
         thermostat = daikin_client.get_thermostats()["device123"]
         assert thermostat.schedule.enabled is True
         assert thermostat.schedule.override is True
-        assert thermostat.sched_resume_time == datetime(2026, 10, 24, 18, 0, 0, tzinfo=timezone.utc)
+        assert thermostat.sched_resume_time == datetime(2026, 10, 24, 18, 0, 0, tzinfo=UTC)
         assert thermostat.sched_override_duration == 120
 
     async def test_thermostat_schedule_zero_or_negative_resume_time(self, daikin_client: DaikinOne) -> None:
