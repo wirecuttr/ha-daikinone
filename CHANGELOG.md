@@ -26,7 +26,7 @@ This release adds the 7-day cloud schedule service layer, native defrost/preheat
 ### Features & Enhancements
 
 #### 1. 7-Day Cloud Schedule Service Layer
-* **`daikinone.get_schedule` (`SupportsResponse.ONLY`):** Fetches the full 7-day x 6-period schedule matrix directly from cached memory (<5ms, zero cloud network round-trip and zero SQLite recorder bloat) with temperature conversion to system units.
+* **`daikinone.get_schedule` (`SupportsResponse.ONLY`):** Returns the full 7-day x 6-period schedule matrix from local coordinator cache with temperature conversion to configured system units.
 * **`daikinone.set_schedule`:** Validates and executes single atomic batch updates across any subset of days and periods, enforcing hardware temperature limits and minimum deadband separation with optimistic state updates.
 * Compatible with the standalone [`custom:daikin-schedule-card`](https://github.com/wirecuttr/daikin-schedule-card) Lovelace card.
 

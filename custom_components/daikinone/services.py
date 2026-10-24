@@ -207,7 +207,7 @@ SET_SCHEDULE_SCHEMA = vol.Schema(
 
 
 async def _async_handle_get_schedule(call: ServiceCall) -> ServiceResponse:
-    """Handle daikinone.get_schedule service call from local process RAM (<5ms, 0 HTTP calls)."""
+    """Handle daikinone.get_schedule service call from local coordinator cache."""
     hass = call.hass
     entity_id = _normalize_entity_id(call.data[ATTR_ENTITY_ID])
     _, thermostat = _resolve_thermostat(hass, entity_id)
