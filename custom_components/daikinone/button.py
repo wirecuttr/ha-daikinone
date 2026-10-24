@@ -39,6 +39,8 @@ async def async_setup_entry(
 class DaikinOneResumeScheduleButton(DaikinOneEntity[DaikinThermostat], ButtonEntity):
     """Button entity to resume scheduled thermostat set points."""
 
+    _attr_should_poll = True
+
     def __init__(
         self,
         description: ButtonEntityDescription,
