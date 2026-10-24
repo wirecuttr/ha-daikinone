@@ -41,6 +41,7 @@ ATTR_TEMPERATURE_UNIT = "temperature_unit"
 ATTR_PART = "part"
 ATTR_ENABLED = "enabled"
 ATTR_START_TIME = "start_time"
+ATTR_START_SLOT = "start_slot"
 ATTR_HEAT_TARGET = "heat_target"
 ATTR_COOL_TARGET = "cool_target"
 ATTR_LABEL = "label"
@@ -184,10 +185,12 @@ PERIOD_INPUT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_PART): vol.All(vol.Coerce(int), vol.Range(min=1, max=6)),
         vol.Optional(ATTR_ENABLED): cv.boolean,
         vol.Optional(ATTR_START_TIME): vol.Any(str, int),
+        vol.Optional(ATTR_START_SLOT): vol.All(vol.Coerce(int), vol.Range(min=0, max=95)),
         vol.Optional(ATTR_HEAT_TARGET): vol.Coerce(float),
         vol.Optional(ATTR_COOL_TARGET): vol.Coerce(float),
         vol.Optional(ATTR_LABEL): cv.string,
-    }
+    },
+    extra=vol.REMOVE_EXTRA,
 )
 
 SET_SCHEDULE_SCHEMA = vol.Schema(
@@ -198,7 +201,8 @@ SET_SCHEDULE_SCHEMA = vol.Schema(
             [UnitOfTemperature.CELSIUS, UnitOfTemperature.FAHRENHEIT, "C", "F"]
         ),
         vol.Optional(ATTR_DAYS): dict,
-    }
+    },
+    extra=vol.REMOVE_EXTRA,
 )
 
 
@@ -367,6 +371,8 @@ async def _async_handle_set_schedule(call: ServiceCall) -> None:
                 # 1. Start slot
                 if ATTR_START_TIME in p_data:
                     slot = _parse_time_to_slot(p_data[ATTR_START_TIME])
+                elif ATTR_START_SLOT in p_data:
+                    slot = _parse_time_to_slot(p_data[ATTR_START_SLOT])
                 elif existing_period is not None:
                     slot = existing_period.start_slot
                 else:
@@ -453,9 +459,6 @@ async def _async_handle_set_schedule(call: ServiceCall) -> None:
 
 def async_register_services(hass: HomeAssistant) -> None:
     """Register Daikin One schedule services if not already registered."""
-    if not hasattr(hass, "services") or hass.services is None:
-        return
-
     if not hass.services.has_service(DOMAIN, SERVICE_GET_SCHEDULE):
         hass.services.async_register(
             DOMAIN,
@@ -476,9 +479,6 @@ def async_register_services(hass: HomeAssistant) -> None:
 
 def async_unregister_services(hass: HomeAssistant) -> None:
     """Unregister Daikin One schedule services when the last config entry is unloaded."""
-    if not hasattr(hass, "services") or hass.services is None:
-        return
-
     if hass.services.has_service(DOMAIN, SERVICE_GET_SCHEDULE):
         hass.services.async_remove(DOMAIN, SERVICE_GET_SCHEDULE)
     if hass.services.has_service(DOMAIN, SERVICE_SET_SCHEDULE):

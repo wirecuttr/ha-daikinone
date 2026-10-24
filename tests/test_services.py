@@ -450,6 +450,34 @@ class TestSetScheduleService:
         ):
             await _async_handle_set_schedule(call)  # type: ignore[arg-type]
 
+    async def test_set_schedule_accepts_raw_get_schedule_response_payload(
+        self, setup_schedule_env: tuple[SimpleNamespace, DaikinOne, DaikinOneData]
+    ) -> None:
+        """Verify set_schedule accepts the full get_schedule response dictionary without errors."""
+        hass, client, _ = setup_schedule_env
+        get_call = SimpleNamespace(
+            hass=hass,
+            data={ATTR_ENTITY_ID: "climate.mainfloor_thermostat"},
+        )
+        response = await _async_handle_get_schedule(get_call)  # type: ignore[arg-type]
+        assert "days" in response
+        assert "thermostat_id" in response
+
+        from custom_components.daikinone.services import SET_SCHEDULE_SCHEMA
+
+        validated_data = SET_SCHEDULE_SCHEMA(dict(response))
+        assert "thermostat_id" not in validated_data
+
+        set_call = SimpleNamespace(
+            hass=hass,
+            data=validated_data,
+        )
+
+        with patch.object(client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {}
+            await _async_handle_set_schedule(set_call)  # type: ignore[arg-type]
+            assert mock_req.call_count == 1
+
 
 class TestServiceRegistrationLifecycle:
     """Tests for async_register_services and async_unregister_services."""
