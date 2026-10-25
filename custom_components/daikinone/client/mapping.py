@@ -299,6 +299,12 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     set_point_cool_max = F_SETPOINT_COOL_MAX.read(d) or F_P1P2_SETPOINT_COOL_MAX.read(d) or F_TEMP_SP_MAX.read(d)
     set_point_cool_min = F_SETPOINT_COOL_MIN.read(d) or F_P1P2_SETPOINT_COOL_MIN.read(d) or F_TEMP_SP_MIN.read(d)
 
+    p1p2_field_setting_supported = "P1P2FieldSettingModeNumber" in d and (
+        d.get("P1P2PopulatedUnits", 0) > 0
+        or d.get("P1P2UnitType", 255) not in (0, 255)
+        or bool(d.get("P1P2IndoorUnitDataValid"))
+    )
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -412,6 +418,7 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         humidification_available=read(payload.data, f.F_CAP_HUMIDIFICATION),
         dehumidification_available=read(payload.data, f.F_CAP_DEHUMIDIFICATION),
         is_one_lite=is_one_lite,
+        p1p2_field_setting_supported=p1p2_field_setting_supported,
         units=payload.data.get("units", 0),
         temp_offset=temp_offset,
         hum_offset=hum_offset,

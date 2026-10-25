@@ -392,6 +392,7 @@ class DaikinThermostat(DaikinDevice):
     humidification_available: bool = False
     dehumidification_available: bool = False
     is_one_lite: bool = False
+    p1p2_field_setting_supported: bool = False
     units: int | None = 0
     temp_offset: float | None = None
     hum_offset: int | None = None
