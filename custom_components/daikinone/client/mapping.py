@@ -7,6 +7,24 @@ from datetime import UTC, datetime
 from typing import Any
 
 from custom_components.daikinone.client import fields as f
+from custom_components.daikinone.client.fields import (
+    F_CAP_COOL,
+    F_CAP_EMERGENCY_HEAT,
+    F_CAP_HEAT,
+    F_MODE_EM_HEAT_AVAILABLE,
+    F_P1P2_CAP_COOL,
+    F_P1P2_CAP_HEAT,
+    F_P1P2_SETPOINT_COOL_MAX,
+    F_P1P2_SETPOINT_COOL_MIN,
+    F_P1P2_SETPOINT_HEAT_MAX,
+    F_P1P2_SETPOINT_HEAT_MIN,
+    F_SETPOINT_COOL_MAX,
+    F_SETPOINT_COOL_MIN,
+    F_SETPOINT_HEAT_MAX,
+    F_SETPOINT_HEAT_MIN,
+    F_TEMP_SP_MAX,
+    F_TEMP_SP_MIN,
+)
 from custom_components.daikinone.client.models import (
     DAIKIN_DAY_PREFIXES,
     SCHEDULE_PARTS,
@@ -198,13 +216,13 @@ def _normalize_one_lite_payload(data: dict[str, Any], model: str | None = None) 
 
 def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     is_one_lite = _normalize_one_lite_payload(payload.data, model=payload.model)
-
+    d = payload.data
     capabilities: set[DaikinThermostatCapability] = set()
-    if payload.data.get("ctSystemCapHeat"):
+    if F_CAP_HEAT.read(d) or F_P1P2_CAP_HEAT.read(d):
         capabilities.add(DaikinThermostatCapability.HEAT)
-    if payload.data.get("ctSystemCapCool"):
+    if F_CAP_COOL.read(d) or F_P1P2_CAP_COOL.read(d):
         capabilities.add(DaikinThermostatCapability.COOL)
-    if payload.data.get("ctSystemCapEmergencyHeat") and payload.data.get("modeEmHeatAvailable", True):
+    if F_CAP_EMERGENCY_HEAT.read(d) and F_MODE_EM_HEAT_AVAILABLE.read(d):
         capabilities.add(DaikinThermostatCapability.EMERGENCY_HEAT)
 
     away_mode = payload.data.get("geofencingAway")
@@ -273,6 +291,13 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     hum_offset: int | None = None
     if "humOffset" in payload.data and payload.data["humOffset"] is not None:
         hum_offset = read(payload.data, f.F_HUM_OFFSET)
+
+
+    set_point_heat_max = F_SETPOINT_HEAT_MAX.read(d) or F_P1P2_SETPOINT_HEAT_MAX.read(d) or F_TEMP_SP_MAX.read(d)
+    set_point_heat_min = F_SETPOINT_HEAT_MIN.read(d) or F_P1P2_SETPOINT_HEAT_MIN.read(d) or F_TEMP_SP_MIN.read(d)
+    set_point_cool_max = F_SETPOINT_COOL_MAX.read(d) or F_P1P2_SETPOINT_COOL_MAX.read(d) or F_TEMP_SP_MAX.read(d)
+    set_point_cool_min = F_SETPOINT_COOL_MIN.read(d) or F_P1P2_SETPOINT_COOL_MIN.read(d) or F_TEMP_SP_MIN.read(d)
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -293,11 +318,11 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         indoor_temperature=_read_field(payload.data, f.F_TEMP_INDOOR),
         indoor_humidity=_read_field(payload.data, f.F_HUM_INDOOR),
         set_point_heat=_read_field(payload.data, f.F_SETPOINT_HEAT),
-        set_point_heat_min=_read_field(payload.data, f.F_SETPOINT_HEAT_MIN),
-        set_point_heat_max=_read_field(payload.data, f.F_SETPOINT_HEAT_MAX),
+        set_point_heat_min=set_point_heat_min,
+        set_point_heat_max=set_point_heat_max,
         set_point_cool=_read_field(payload.data, f.F_SETPOINT_COOL),
-        set_point_cool_min=_read_field(payload.data, f.F_SETPOINT_COOL_MIN),
-        set_point_cool_max=_read_field(payload.data, f.F_SETPOINT_COOL_MAX),
+        set_point_cool_min=set_point_cool_min,
+        set_point_cool_max=set_point_cool_max,
         outdoor_temperature=_read_field(payload.data, f.F_TEMP_OUTDOOR),
         outdoor_humidity=_read_field(payload.data, f.F_HUM_OUTDOOR),
         air_quality_outdoor=map_air_quality_outdoor(payload) if not is_one_lite else None,
@@ -488,6 +513,7 @@ def map_thermostat_schedule(data: dict[str, Any]) -> DaikinThermostatSchedule:
         min_temp_delta=min_temp_delta,
         scheduled_heat_setpoint=scheduled_heat,
         scheduled_cool_setpoint=scheduled_cool,
+
     )
 
 

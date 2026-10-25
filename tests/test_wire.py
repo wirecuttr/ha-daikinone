@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from custom_components.daikinone.client.wire import (
+    BoolField,
     CapabilityField,
     CelsiusField,
     DaikinDeviceDataResponse,
@@ -227,6 +228,38 @@ class TestCapabilityField:
 
     def test_bool_false_returns_false(self) -> None:
         assert read({"k": False}, CapabilityField("k")) is False
+
+
+class TestBoolField:
+    def test_true_and_false(self) -> None:
+        field = BoolField("k")
+        assert read({"k": True}, field) is True
+        assert read({"k": False}, field) is False
+        assert field.read({"k": True}) is True
+        assert field.read({"k": False}) is False
+
+    def test_missing_returns_default(self) -> None:
+        field_default_false = BoolField("k")
+        field_default_true = BoolField("k", default=True)
+        assert read({}, field_default_false) is False
+        assert read({}, field_default_true) is True
+        assert field_default_false.read({}) is False
+        assert field_default_true.read({}) is True
+
+    def test_none_returns_default(self) -> None:
+        field_default_false = BoolField("k")
+        field_default_true = BoolField("k", default=True)
+        assert read({"k": None}, field_default_false) is False
+        assert read({"k": None}, field_default_true) is True
+        assert field_default_false.read({"k": None}) is False
+        assert field_default_true.read({"k": None}) is True
+
+    def test_numeric_truthy_and_falsy(self) -> None:
+        field = BoolField("k")
+        assert read({"k": 1}, field) is True
+        assert read({"k": 0}, field) is False
+        assert read({"k": 255}, field) is False
+        assert read({"k": 65535}, field) is False
 
 
 @dataclass(frozen=True)

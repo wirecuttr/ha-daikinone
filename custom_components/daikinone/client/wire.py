@@ -80,6 +80,11 @@ class IntField:
     sentinel: Sentinel
     scale: float = 1.0
 
+    def read(self, data: dict[str, Any]) -> int | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
+
 
 @dataclass(frozen=True, slots=True)
 class FloatField:
@@ -88,6 +93,11 @@ class FloatField:
     key: str
     sentinel: Sentinel
     scale: float = 1.0
+
+    def read(self, data: dict[str, Any]) -> float | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +109,11 @@ class TempField:
     scale: float = 0.1
     unit: Literal["F", "C"] = "F"
 
+    def read(self, data: dict[str, Any]) -> Temperature | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
+
 
 @dataclass(frozen=True, slots=True)
 class RuntimeField:
@@ -107,6 +122,11 @@ class RuntimeField:
     key: str
     sentinel: Sentinel = Sentinel.U32
 
+    def read(self, data: dict[str, Any]) -> timedelta | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
+
 
 @dataclass(frozen=True, slots=True)
 class StringField:
@@ -114,12 +134,22 @@ class StringField:
 
     key: str
 
+    def read(self, data: dict[str, Any]) -> str | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
+
 
 @dataclass(frozen=True, slots=True)
 class PercentField:
     """Integer 0..100 (humidity, etc.); None if out of range."""
 
     key: str
+
+    def read(self, data: dict[str, Any]) -> int | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +159,11 @@ class CelsiusField:
     key: str
     min_c: float = -60
     max_c: float = 80
+
+    def read(self, data: dict[str, Any]) -> Temperature | None:
+        if self.key not in data or data[self.key] is None:
+            return None
+        return read(data, self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +176,20 @@ class UnitTypeField:
     """
 
     key: str
+
+    def read(self, data: dict[str, Any]) -> bool:
+        return read(data, self)
+
+
+@dataclass(frozen=True, slots=True)
+class BoolField:
+    """Boolean flag wire value; returns default if key is absent."""
+
+    key: str
+    default: bool = False
+
+    def read(self, data: dict[str, Any]) -> bool:
+        return read(data, self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +225,8 @@ def read(data: dict[str, Any], f: CelsiusField) -> Temperature | None: ...
 def read(data: dict[str, Any], f: UnitTypeField) -> bool: ...
 @overload
 def read(data: dict[str, Any], f: CapabilityField) -> bool: ...
+@overload
+def read(data: dict[str, Any], f: BoolField) -> bool: ...
 
 
 def read(data: dict[str, Any], f: Any) -> Any:
@@ -190,7 +241,22 @@ def read(data: dict[str, Any], f: Any) -> Any:
         if isinstance(val, (int, float)):
             return val > 0
         return bool(val)
+    if isinstance(f, BoolField):
+        val = data.get(f.key)
+        if val is None:
+            return f.default
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            if val in (Sentinel.U8, Sentinel.U16, Sentinel.I16, Sentinel.U32):
+                return False
+            return val > 0
+        return bool(val)
+            return val > 0
+        return bool(val)
     value = data[f.key]
+    if value is None:
+        return None
     if isinstance(f, IntField):
         return None if value is None or value == f.sentinel else round(value * f.scale)
     if isinstance(f, FloatField):
