@@ -946,7 +946,6 @@ class TestThermostatEmergencyHeatCapability:
         assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
 
 
-
 class TestThermostatSetpointRangeFallbacks:
     """Test 3-tier setpoint range fallback chain: EquipProtocol* -> P1P2* -> tempSP*."""
 
@@ -1719,4 +1718,3 @@ class TestCalibrationOffsetsMapping:
         tstat = daikin_client.get_thermostats()["device123"]
         assert tstat.temp_offset is None
         assert tstat.hum_offset is None
-

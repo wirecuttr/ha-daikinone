@@ -252,8 +252,6 @@ def read(data: dict[str, Any], f: Any) -> Any:
                 return False
             return val > 0
         return bool(val)
-            return val > 0
-        return bool(val)
     value = data[f.key]
     if value is None:
         return None

@@ -292,7 +292,6 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     if "humOffset" in payload.data and payload.data["humOffset"] is not None:
         hum_offset = read(payload.data, f.F_HUM_OFFSET)
 
-
     set_point_heat_max = F_SETPOINT_HEAT_MAX.read(d) or F_P1P2_SETPOINT_HEAT_MAX.read(d) or F_TEMP_SP_MAX.read(d)
     set_point_heat_min = F_SETPOINT_HEAT_MIN.read(d) or F_P1P2_SETPOINT_HEAT_MIN.read(d) or F_TEMP_SP_MIN.read(d)
     set_point_cool_max = F_SETPOINT_COOL_MAX.read(d) or F_P1P2_SETPOINT_COOL_MAX.read(d) or F_TEMP_SP_MAX.read(d)
@@ -513,7 +512,6 @@ def map_thermostat_schedule(data: dict[str, Any]) -> DaikinThermostatSchedule:
         min_temp_delta=min_temp_delta,
         scheduled_heat_setpoint=scheduled_heat,
         scheduled_cool_setpoint=scheduled_cool,
-
     )
 
 
