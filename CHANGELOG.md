@@ -15,6 +15,7 @@ This release focuses on establishing comprehensive feature and hardware compatib
 * **Test Suite:** Expanded from 360 to **433 automated unit tests** (100% pass rate).
 * **Static Typing & Quality Gates:** 0 errors across `ty check custom_components`, `ruff check .`, and `ruff format`.
 * **Upstream PRs:** [#149](https://github.com/zlangbert/ha-daikinone/pull/149), [#150](https://github.com/zlangbert/ha-daikinone/pull/150), [#151](https://github.com/zlangbert/ha-daikinone/pull/151).
+* **Hardware Verification Note:** P1/P2 ductless and Daikin One Lite 24V features have not been directly tested on physical hardware due to equipment availability; these paths rely on proven reference implementations from `daikinskyport` and community payload dumps. Unitary split systems have been regression-tested.
 
 ---
 
