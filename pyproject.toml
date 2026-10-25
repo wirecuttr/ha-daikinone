@@ -23,9 +23,21 @@ dev = [
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+ignore = [
+    "I001",
+    "PLE1205",
+    "SIM117",
+    "UP035",
+    "UP037",
+]
+
 [tool.ruff.format]
 docstring-code-format = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ty.rules]
+invalid-property-type-override = "ignore"

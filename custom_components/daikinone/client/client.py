@@ -25,10 +25,9 @@ log = logging.getLogger(__name__)
 class DaikinOne:
     """Manages connection to Daikin API and fetching device data."""
 
-    __thermostats: dict[str, DaikinThermostat] = dict()
-
     def __init__(self, creds: DaikinUserCredentials) -> None:
         self._transport = DaikinTransport(creds)
+        self.__thermostats: dict[str, DaikinThermostat] = {}
 
     async def login(self) -> bool:
         return await self._transport.login()
@@ -107,3 +106,23 @@ class DaikinOne:
             method="PUT",
             body={"fanCirculateSpeed": fan_speed.value},
         )
+
+    async def set_humidity(self, thermostat_id: str, humidity: int) -> None:
+        """Set target humidity setpoint."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"humSP": humidity},
+        )
+        if thermostat := self.__thermostats.get(thermostat_id):
+            thermostat.hum_setpoint = humidity
+
+    async def set_dehumidify_setpoint(self, thermostat_id: str, humidity: int) -> None:
+        """Set target dehumidification setpoint."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"dehumSP": humidity},
+        )
+        if thermostat := self.__thermostats.get(thermostat_id):
+            thermostat.dehum_setpoint = humidity

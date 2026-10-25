@@ -1,5 +1,7 @@
 """Domain models exposed by the Daikin client to the rest of the integration."""
 
+from __future__ import annotations
+
 from datetime import timedelta
 from enum import Enum, auto
 
@@ -49,7 +51,7 @@ class DaikinOutdoorUnitReversingValveStatus(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinOutdoorUnitReversingValveStatus":
+    def _missing_(cls, value: object) -> DaikinOutdoorUnitReversingValveStatus:
         return cls.UNKNOWN
 
 
@@ -59,7 +61,7 @@ class DaikinOutdoorUnitHeaterStatus(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinOutdoorUnitHeaterStatus":
+    def _missing_(cls, value: object) -> DaikinOutdoorUnitHeaterStatus:
         return cls.UNKNOWN
 
 
@@ -151,7 +153,7 @@ class DaikinThermostatMode(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatMode":
+    def _missing_(cls, value: object) -> DaikinThermostatMode:
         return cls.UNKNOWN
 
 
@@ -164,7 +166,7 @@ class DaikinThermostatStatus(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatStatus":
+    def _missing_(cls, value: object) -> DaikinThermostatStatus:
         return cls.UNKNOWN
 
 
@@ -180,7 +182,7 @@ class DaikinThermostatFanMode(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatFanMode":
+    def _missing_(cls, value: object) -> DaikinThermostatFanMode:
         return cls.UNKNOWN
 
 
@@ -191,7 +193,7 @@ class DaikinThermostatFanSpeed(Enum):
     UNKNOWN = 255
 
     @classmethod
-    def _missing_(cls, value: object) -> "DaikinThermostatFanSpeed":
+    def _missing_(cls, value: object) -> DaikinThermostatFanSpeed:
         return cls.UNKNOWN
 
 
@@ -218,3 +220,7 @@ class DaikinThermostat(DaikinDevice):
     air_quality_outdoor: DaikinOneAirQualitySensorOutdoor | None
     air_quality_indoor: DaikinOneAirQualitySensorIndoor | None
     equipment: dict[str, DaikinEquipment]
+    hum_setpoint: int | None = None
+    dehum_setpoint: int | None = None
+    humidification_available: bool = False
+    dehumidification_available: bool = False

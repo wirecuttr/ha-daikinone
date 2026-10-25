@@ -64,6 +64,10 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         air_quality_outdoor=map_air_quality_outdoor(payload),
         air_quality_indoor=map_air_quality_indoor(payload),
         equipment=map_equipment(payload),
+        hum_setpoint=read(payload.data, f.F_HUM_SETPOINT) if f.F_HUM_SETPOINT.key in payload.data else None,
+        dehum_setpoint=read(payload.data, f.F_DEHUM_SETPOINT) if f.F_DEHUM_SETPOINT.key in payload.data else None,
+        humidification_available=read(payload.data, f.F_CAP_HUMIDIFICATION),
+        dehumidification_available=read(payload.data, f.F_CAP_DEHUMIDIFICATION),
     )
 
 
