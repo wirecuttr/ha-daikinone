@@ -1364,7 +1364,6 @@ class TestHumidityControlsMapping:
         assert thermostat.humidification_available is False
         assert thermostat.dehumidification_available is False
 
-
     async def test_resistive_air_handler_heat_strips(self, daikin_client: DaikinOne) -> None:
         od = {
             **OUTDOOR_UNIT_DATA,
