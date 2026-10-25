@@ -1,6 +1,7 @@
 """Pure functions that turn a Daikin device-data payload into domain models."""
 
 import logging
+from typing import Any
 
 from custom_components.daikinone.client import fields as f
 from custom_components.daikinone.client.models import (
@@ -29,7 +30,68 @@ from custom_components.daikinone.client.wire import (
 log = logging.getLogger(__name__)
 
 
+def _read_field(data: dict[str, Any], field: Any) -> Any:
+    if field.key not in data or data[field.key] is None:
+        return None
+    return read(data, field)
+
+
+def _normalize_one_lite_payload(data: dict[str, Any], model: str | None = None) -> bool:
+    """Normalize One Lite (D2271 / ONELITE_24V) payload keys to canonical Skyport field names.
+
+    Returns True if One Lite schema is detected and normalized, False otherwise.
+    """
+    is_one_lite = (
+        model in ("ONELITE_24V", "D2271", "ONELITE")
+        or data.get("model") in ("ONELITE_24V", "D2271", "ONELITE")
+        or "coolSP" in data
+    )
+    if not is_one_lite:
+        return False
+
+    aliases = {
+        "cspActive": "coolSP",
+        "hspActive": "heatSP",
+        "cspHome": "coolSP",
+        "hspHome": "heatSP",
+        "tempIndoor": "spaceTemp",
+        "humIndoor": "spaceHum",
+        "equipmentStatus": "eqStatus",
+        "geofencingAway": "away",
+        "schedEnabled": "progOn",
+        "schedOverride": "progOn",
+        "statFirmware": "firmwareVersion",
+        "nightModeEnabled": "nightDimmer",
+        "nightModeActive": "nightDimmer",
+        "displayLockPIN": "security",
+        "alertMediaAirFilterDays": "filterDaysRun",
+    }
+    for canonical, native in aliases.items():
+        if native in data:
+            data[canonical] = data[native]
+
+    data.setdefault("fanCirculate", 0)
+    data.setdefault("fanCirculateSpeed", 0)
+    data.setdefault("schedOverrideDuration", 0)
+
+    has_heat = bool(data.get("heat1") or data.get("heat2") or data.get("w1ObTerminal"))
+    data.setdefault("ctSystemCapHeat", has_heat)
+
+    has_cool = bool(data.get("cool1") or data.get("cool2") or data.get("y1Terminal"))
+    cool_stages = int(has_cool)
+    data.setdefault("ctOutdoorNoofCoolStages", cool_stages)
+    data.setdefault("ctSystemCapCool", has_cool)
+    data.setdefault("ctSystemCapEmergencyHeat", False)
+
+    data.setdefault("aqOutdoorAvailable", False)
+    data.setdefault("aqIndoorAvailable", False)
+
+    return True
+
+
 def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
+    is_one_lite = _normalize_one_lite_payload(payload.data, model=payload.model)
+
     capabilities: set[DaikinThermostatCapability] = set()
     if payload.data.get("ctSystemCapHeat"):
         capabilities.add(DaikinThermostatCapability.HEAT)
@@ -46,31 +108,32 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         firmware_version=payload.firmware,
         online=payload.online,
         capabilities=capabilities,
-        mode=DaikinThermostatMode(payload.data["mode"]),
-        status=DaikinThermostatStatus(payload.data["equipmentStatus"]),
-        fan_mode=DaikinThermostatFanMode(payload.data["fanCirculate"]),
-        fan_speed=DaikinThermostatFanSpeed(payload.data["fanCirculateSpeed"]),
-        schedule=DaikinThermostatSchedule(enabled=payload.data["schedEnabled"]),
-        indoor_temperature=read(payload.data, f.F_TEMP_INDOOR),
-        indoor_humidity=read(payload.data, f.F_HUM_INDOOR),
-        set_point_heat=read(payload.data, f.F_SETPOINT_HEAT),
-        set_point_heat_min=read(payload.data, f.F_SETPOINT_HEAT_MIN),
-        set_point_heat_max=read(payload.data, f.F_SETPOINT_HEAT_MAX),
-        set_point_cool=read(payload.data, f.F_SETPOINT_COOL),
-        set_point_cool_min=read(payload.data, f.F_SETPOINT_COOL_MIN),
-        set_point_cool_max=read(payload.data, f.F_SETPOINT_COOL_MAX),
-        outdoor_temperature=read(payload.data, f.F_TEMP_OUTDOOR),
-        outdoor_humidity=read(payload.data, f.F_HUM_OUTDOOR),
+        mode=DaikinThermostatMode(payload.data.get("mode", 0)),
+        status=DaikinThermostatStatus(payload.data.get("equipmentStatus", 255)),
+        fan_mode=DaikinThermostatFanMode(payload.data.get("fanCirculate", 0)),
+        fan_speed=DaikinThermostatFanSpeed(payload.data.get("fanCirculateSpeed", 0)),
+        schedule=DaikinThermostatSchedule(enabled=bool(payload.data.get("schedEnabled", False))),
+        indoor_temperature=_read_field(payload.data, f.F_TEMP_INDOOR),
+        indoor_humidity=_read_field(payload.data, f.F_HUM_INDOOR),
+        set_point_heat=_read_field(payload.data, f.F_SETPOINT_HEAT),
+        set_point_heat_min=_read_field(payload.data, f.F_SETPOINT_HEAT_MIN),
+        set_point_heat_max=_read_field(payload.data, f.F_SETPOINT_HEAT_MAX),
+        set_point_cool=_read_field(payload.data, f.F_SETPOINT_COOL),
+        set_point_cool_min=_read_field(payload.data, f.F_SETPOINT_COOL_MIN),
+        set_point_cool_max=_read_field(payload.data, f.F_SETPOINT_COOL_MAX),
+        outdoor_temperature=_read_field(payload.data, f.F_TEMP_OUTDOOR),
+        outdoor_humidity=_read_field(payload.data, f.F_HUM_OUTDOOR),
         air_quality_outdoor=map_air_quality_outdoor(payload),
         air_quality_indoor=map_air_quality_indoor(payload),
         equipment=map_equipment(payload),
+        is_one_lite=is_one_lite,
     )
 
 
 def map_air_quality_outdoor(
     payload: DaikinDeviceDataResponse,
 ) -> DaikinOneAirQualitySensorOutdoor | None:
-    if not payload.data["aqOutdoorAvailable"]:
+    if not payload.data.get("aqOutdoorAvailable"):
         return None
 
     return DaikinOneAirQualitySensorOutdoor(
@@ -84,7 +147,7 @@ def map_air_quality_outdoor(
 def map_air_quality_indoor(
     payload: DaikinDeviceDataResponse,
 ) -> DaikinOneAirQualitySensorIndoor | None:
-    if not payload.data["aqIndoorAvailable"]:
+    if not payload.data.get("aqIndoorAvailable"):
         return None
 
     return DaikinOneAirQualitySensorIndoor(

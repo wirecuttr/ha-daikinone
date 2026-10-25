@@ -1,32 +1,32 @@
-from enum import Enum
 import logging
+from enum import Enum
 
 from homeassistant.components.climate import (
     ClimateEntity,
     ClimateEntityDescription,
 )
 from homeassistant.components.climate.const import (
-    HVACMode,
+    ATTR_TARGET_TEMP_HIGH,
+    ATTR_TARGET_TEMP_LOW,
+    FAN_OFF,
     ClimateEntityFeature,
     HVACAction,
-    ATTR_TARGET_TEMP_LOW,
-    ATTR_TARGET_TEMP_HIGH,
-    FAN_OFF,
+    HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature, ATTR_TEMPERATURE
+from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from custom_components.daikinone import DaikinOneData, DOMAIN
-from custom_components.daikinone.entity import DaikinOneEntity
+from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.client.models import (
     DaikinThermostat,
     DaikinThermostatCapability,
+    DaikinThermostatFanMode,
     DaikinThermostatMode,
     DaikinThermostatStatus,
-    DaikinThermostatFanMode,
 )
+from custom_components.daikinone.entity import DaikinOneEntity
 from custom_components.daikinone.utils import Temperature
 
 log = logging.getLogger(__name__)
@@ -88,15 +88,17 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         self._attr_translation_key = "daikinone_thermostat"
         self._attr_unique_id = f"{self._device.id}-climate"
         self._attr_temperature_unit = UnitOfTemperature.CELSIUS
-        self._attr_supported_features = (
+        features = (
             ClimateEntityFeature.TURN_ON
             | ClimateEntityFeature.TURN_OFF
             | ClimateEntityFeature.TARGET_TEMPERATURE
             | ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
-            | ClimateEntityFeature.FAN_MODE
         )
+        if not self._device.is_one_lite:
+            features |= ClimateEntityFeature.FAN_MODE
+        self._attr_supported_features = features
         self._attr_hvac_modes = self.get_hvac_modes()
-        self._attr_fan_modes = [m.value for m in DaikinOneThermostatFanMode]
+        self._attr_fan_modes = [] if self._device.is_one_lite else [m.value for m in DaikinOneThermostatFanMode]
 
         # These attributes must be initialized otherwise HA `CachedProperties` doesn't create a
         # backing prop. If they are not initialized, climate will error during setup because we support
@@ -265,6 +267,9 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
             raise ValueError("Set temperature called with no temperature values")
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
+        if self._device.is_one_lite:
+            raise NotImplementedError("Fan mode control is not supported on Daikin One Lite")
+
         target_fan_mode: DaikinThermostatFanMode
         match fan_mode:
             case DaikinOneThermostatFanMode.OFF.value:
@@ -356,18 +361,28 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         heat_max = self._device.set_point_heat_max.celsius if self._device.set_point_heat_max else None
         cool_max = self._device.set_point_cool_max.celsius if self._device.set_point_cool_max else None
 
-        # these should be the same but just in case, take the larger of the two for the min
         if heat_min is not None and cool_min is not None:
             self._attr_min_temp = max(heat_min, cool_min)
-        # these should be the same but just in case, take the smaller of the two for the max
+        elif heat_min is not None:
+            self._attr_min_temp = heat_min
+        elif cool_min is not None:
+            self._attr_min_temp = cool_min
+
         if heat_max is not None and cool_max is not None:
             self._attr_max_temp = min(heat_max, cool_max)
+        elif heat_max is not None:
+            self._attr_max_temp = heat_max
+        elif cool_max is not None:
+            self._attr_max_temp = cool_max
 
         # fan settings
-        match self._device.fan_mode:
-            case DaikinThermostatFanMode.OFF:
-                self._attr_fan_mode = DaikinOneThermostatFanMode.OFF.value
-            case DaikinThermostatFanMode.ALWAYS_ON:
-                self._attr_fan_mode = DaikinOneThermostatFanMode.ALWAYS_ON.value
-            case DaikinThermostatFanMode.SCHEDULED:
-                self._attr_fan_mode = DaikinOneThermostatFanMode.SCHEDULED.value
+        if self._device.is_one_lite:
+            self._attr_fan_mode = None
+        else:
+            match self._device.fan_mode:
+                case DaikinThermostatFanMode.OFF:
+                    self._attr_fan_mode = DaikinOneThermostatFanMode.OFF.value
+                case DaikinThermostatFanMode.ALWAYS_ON:
+                    self._attr_fan_mode = DaikinOneThermostatFanMode.ALWAYS_ON.value
+                case DaikinThermostatFanMode.SCHEDULED:
+                    self._attr_fan_mode = DaikinOneThermostatFanMode.SCHEDULED.value
