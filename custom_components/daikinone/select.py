@@ -39,6 +39,8 @@ async def async_setup_entry(
     entities: list[SelectEntity] = []
 
     for thermostat in data.daikin.get_thermostats().values():
+        if thermostat.is_one_lite:
+            continue
         entities.append(
             DaikinOneFanSpeedSelect(
                 description=SelectEntityDescription(

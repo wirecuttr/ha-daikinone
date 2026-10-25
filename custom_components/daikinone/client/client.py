@@ -130,13 +130,76 @@ class DaikinOne:
         if not heat and not cool:
             raise ValueError("At least one of heat or cool set points must be set")
 
+        thermostat = self.__thermostats.get(thermostat_id)
         payload: dict[str, Any] = {}
-        if heat:
-            payload["hspHome"] = heat.celsius
-        if cool:
-            payload["cspHome"] = cool.celsius
-        if override_schedule:
-            payload["schedOverride"] = 1
+        if thermostat and thermostat.is_one_lite:
+            if heat:
+                payload["heatSP"] = heat.celsius
+            if cool:
+                payload["coolSP"] = cool.celsius
+        else:
+            if heat:
+                payload["hspHome"] = heat.celsius
+            if cool:
+                payload["cspHome"] = cool.celsius
+            if override_schedule:
+                payload["schedOverride"] = 1
+
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body=payload,
+        )
+
+        if thermostat:
+            if heat is not None:
+                thermostat.set_point_heat = heat
+            if cool is not None:
+                thermostat.set_point_cool = cool
+
+    async def set_temperature(
+        self,
+        thermostat_id: str,
+        heat: Temperature | None = None,
+        cool: Temperature | None = None,
+    ) -> None:
+        """Set target heat/cool temperature setpoints."""
+        if not heat and not cool:
+            raise ValueError("At least one of heat or cool set points must be set")
+
+        thermostat = self.__thermostats.get(thermostat_id)
+        payload: dict[str, Any] = {}
+        if thermostat and thermostat.is_one_lite:
+            if heat is not None:
+                payload["heatSP"] = heat.celsius
+            if cool is not None:
+                payload["coolSP"] = cool.celsius
+        else:
+            if heat is not None:
+                payload["hspActive"] = heat.celsius
+            if cool is not None:
+                payload["cspActive"] = cool.celsius
+
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body=payload,
+        )
+
+        if thermostat:
+            if heat is not None:
+                thermostat.set_point_heat = heat
+            if cool is not None:
+                thermostat.set_point_cool = cool
+
+    async def set_away(self, thermostat_id: str, away: bool) -> None:
+        """Set away mode."""
+        thermostat = self.__thermostats.get(thermostat_id)
+        payload: dict[str, Any]
+        if thermostat and thermostat.is_one_lite:
+            payload = {"away": away}
+        else:
+            payload = {"geofencingAway": away}
 
         await self._transport.request(
             url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",

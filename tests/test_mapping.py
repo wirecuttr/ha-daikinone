@@ -165,6 +165,41 @@ def _make_device(*equipment_blocks: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+ONELITE_24V_DATA: dict[str, Any] = {
+    "coolSP": 24.0,
+    "heatSP": 20.0,
+    "spaceTemp": 21.5,
+    "spaceHum": 45,
+    "mode": 1,
+    "eqStatus": 3,
+    "away": False,
+    "progOn": True,
+    "heat1": True,
+    "cool1": True,
+    "tempOutdoor": 15.0,
+    "humOutdoor": 55,
+}
+
+
+def _make_one_lite_device(
+    device_id: str = "onelite123",
+    model: str = "ONELITE_24V",
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload_data = dict(ONELITE_24V_DATA)
+    if data:
+        payload_data.update(data)
+    return {
+        "id": device_id,
+        "locationId": "loc456",
+        "name": "One Lite Thermostat",
+        "model": model,
+        "firmware": "1.0.0",
+        "online": True,
+        "data": payload_data,
+    }
+
+
 # --- End-to-end: granular sanitization through DaikinOne.update ---
 
 
@@ -1374,3 +1409,131 @@ class TestHumidityControlsMapping:
 
         thermostat = daikin_client.get_thermostats()["device123"]
         assert determine_heat_source(thermostat) == DaikinHeatSource.HEAT_PUMP
+
+
+class TestOneLiteMapping:
+    """Tests for Daikin One Lite 24V (D2271 / ONELITE_24V) payload normalization and mapping."""
+
+    async def test_one_lite_payload_normalization_and_mapping(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert tstat.is_one_lite is True
+        assert tstat.model == "ONELITE_24V"
+        assert tstat.indoor_temperature is not None
+        assert tstat.indoor_temperature.celsius == 21.5
+        assert tstat.indoor_humidity == 45
+        assert tstat.set_point_cool is not None
+        assert tstat.set_point_cool.celsius == 24.0
+        assert tstat.set_point_heat is not None
+        assert tstat.set_point_heat.celsius == 20.0
+        assert tstat.mode is DaikinThermostatMode.HEAT
+        assert tstat.status is DaikinThermostatStatus.HEATING
+        assert tstat.schedule.enabled is True
+        assert DaikinThermostatCapability.HEAT in tstat.capabilities
+        assert DaikinThermostatCapability.COOL in tstat.capabilities
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in tstat.capabilities
+        assert tstat.equipment == {}
+        assert tstat.air_quality_indoor is None
+        assert tstat.air_quality_outdoor is None
+
+    async def test_one_lite_detection_by_d2271_model(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(model="D2271")
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert tstat.is_one_lite is True
+        assert tstat.model == "D2271"
+
+    async def test_one_lite_detection_by_coolsp_with_unknown_model(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(model="UNKNOWN_STAT")
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert tstat.is_one_lite is True
+
+    async def test_one_lite_terminal_relay_capability_fallback(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(
+            data={"heat1": False, "cool1": False, "w1ObTerminal": True, "y1Terminal": True}
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert DaikinThermostatCapability.HEAT in tstat.capabilities
+        assert DaikinThermostatCapability.COOL in tstat.capabilities
+
+    async def test_one_lite_heat_only_capabilities(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(
+            data={"heat1": True, "cool1": False, "w1ObTerminal": False, "y1Terminal": False}
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert DaikinThermostatCapability.HEAT in tstat.capabilities
+        assert DaikinThermostatCapability.COOL not in tstat.capabilities
+
+    async def test_one_lite_cool_only_capabilities(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(
+            data={"heat1": False, "cool1": True, "w1ObTerminal": False, "y1Terminal": False}
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert DaikinThermostatCapability.HEAT not in tstat.capabilities
+        assert DaikinThermostatCapability.COOL in tstat.capabilities
+
+    async def test_one_lite_defensive_defaults_for_missing_keys(self, daikin_client: DaikinOne) -> None:
+        minimal_data = {
+            "coolSP": 22.0,
+            "spaceTemp": 21.0,
+            "spaceHum": 50,
+            "mode": 2,
+            "eqStatus": 1,
+            "progOn": False,
+            "away": True,
+            "cool1": True,
+        }
+        device_data = {
+            "id": "onelite_minimal",
+            "locationId": "loc456",
+            "name": "Minimal One Lite",
+            "model": "D2271",
+            "firmware": "1.0.0",
+            "online": True,
+            "data": minimal_data,
+        }
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite_minimal"]
+        assert tstat.is_one_lite is True
+        assert tstat.outdoor_temperature is None
+        assert tstat.outdoor_humidity is None
+        assert tstat.air_quality_outdoor is None
+        assert tstat.air_quality_indoor is None
+        assert tstat.set_point_heat is None
+        assert tstat.set_point_cool is not None
+        assert tstat.set_point_cool.celsius == 22.0
+        assert tstat.schedule.enabled is False
+        assert tstat.status is DaikinThermostatStatus.COOLING

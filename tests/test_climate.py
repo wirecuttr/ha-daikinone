@@ -344,6 +344,17 @@ class TestClimateHVACAction:
         climate.update_entity_attributes()
         assert climate.hvac_action == HVACAction.PREHEATING
 
+    async def test_hvac_action_preheating_zero_airflow(self, mock_data: DaikinOneData) -> None:
+        od = _create_outdoor_unit(mode="Heating", compressor_speed=30, heat_demand=50)
+        ah = _create_indoor_unit(airflow=0, heat_demand=50)
+        t = _create_mock_thermostat(
+            status=DaikinThermostatStatus.HEATING,
+            equipment={"od": od, "ah": ah},
+        )
+        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
+        climate.update_entity_attributes()
+        assert climate.hvac_action == HVACAction.PREHEATING
+
 
 _make_mock_thermostat = _create_mock_thermostat
 
@@ -398,12 +409,21 @@ class TestTargetHumidityFeatureFlag:
 
 
 class TestClimateAsyncSetHumidity:
-    async def test_async_set_humidity(self, mock_data: DaikinOneData) -> None:
+    async def test_async_set_humidity(self) -> None:
         from unittest.mock import AsyncMock, MagicMock, patch
 
+        from custom_components.daikinone.client.models import DaikinUserCredentials
+
+        creds = DaikinUserCredentials(email="test@example.com", password="password")
+        daikin_client = DaikinOne(creds)
         thermostat = _make_mock_thermostat(humidification_available=True, hum_setpoint=40)
-        daikin_client = mock_data.daikin
         daikin_client._DaikinOne__thermostats[thermostat.id] = thermostat
+
+        mock_data = DaikinOneData(
+            _hass=None,
+            entry=SimpleNamespace(data={CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY: 1}),
+            daikin=daikin_client,
+        )
 
         entity = DaikinOneThermostat(
             _climate_desc(),
@@ -427,11 +447,14 @@ class TestClimateAsyncSetHumidity:
 
 
 class TestClientHumidityControls:
-    async def test_set_humidity(self, mock_data: DaikinOneData) -> None:
+    async def test_set_humidity(self) -> None:
         from unittest.mock import AsyncMock, patch
 
+        from custom_components.daikinone.client.models import DaikinUserCredentials
+
+        creds = DaikinUserCredentials(email="test@example.com", password="password")
+        daikin_client = DaikinOne(creds)
         thermostat = _make_mock_thermostat(hum_setpoint=40)
-        daikin_client = mock_data.daikin
         daikin_client._DaikinOne__thermostats[thermostat.id] = thermostat
 
         with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
@@ -445,11 +468,14 @@ class TestClientHumidityControls:
             )
         assert daikin_client.get_thermostat("device123").hum_setpoint == 45
 
-    async def test_set_dehumidify_setpoint(self, mock_data: DaikinOneData) -> None:
+    async def test_set_dehumidify_setpoint(self) -> None:
         from unittest.mock import AsyncMock, patch
 
+        from custom_components.daikinone.client.models import DaikinUserCredentials
+
+        creds = DaikinUserCredentials(email="test@example.com", password="password")
+        daikin_client = DaikinOne(creds)
         thermostat = _make_mock_thermostat(dehum_setpoint=60)
-        daikin_client = mock_data.daikin
         daikin_client._DaikinOne__thermostats[thermostat.id] = thermostat
 
         with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
@@ -462,14 +488,3 @@ class TestClientHumidityControls:
                 body={"dehumSP": 55},
             )
         assert daikin_client.get_thermostat("device123").dehum_setpoint == 55
-
-    async def test_hvac_action_preheating_zero_airflow(self, mock_data: DaikinOneData) -> None:
-        od = _create_outdoor_unit(mode="Heating", compressor_speed=30, heat_demand=50)
-        ah = _create_indoor_unit(airflow=0, heat_demand=50)
-        t = _create_mock_thermostat(
-            status=DaikinThermostatStatus.HEATING,
-            equipment={"od": od, "ah": ah},
-        )
-        climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
-        climate.update_entity_attributes()
-        assert climate.hvac_action == HVACAction.PREHEATING

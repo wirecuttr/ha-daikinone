@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from enum import Enum, StrEnum, auto
 from typing import Literal
 
+from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from custom_components.daikinone.utils import Temperature
@@ -339,9 +340,9 @@ class DaikinThermostat(DaikinDevice):
     air_quality_indoor: DaikinOneAirQualitySensorIndoor | None
     # One Clean: 3-hour full-speed fan cycle to clean the air; None when the
     # payload does not report the feature
-    one_clean_fan_active: bool | None
-    dual_fuel_furnace_lockout_enable: bool | None
-    equipment: dict[str, DaikinEquipment]
+    one_clean_fan_active: bool | None = None
+    dual_fuel_furnace_lockout_enable: bool | None = None
+    equipment: dict[str, DaikinEquipment] = Field(default_factory=dict)
     # Away Mode: True when geofencing away setback is active; None when unsupported
     away_mode: bool | None = None
     fan_circulate_start: int | None = None
@@ -362,6 +363,7 @@ class DaikinThermostat(DaikinDevice):
     dehum_setpoint: int | None = None
     humidification_available: bool = False
     dehumidification_available: bool = False
+    is_one_lite: bool = False
 
     num_media_filters: int | None = None
     num_electronic_filters: int | None = None
