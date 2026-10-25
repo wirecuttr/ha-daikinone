@@ -10,7 +10,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.MM
 ## [2026.10.2] - 2026-10-25
 
 ### Overview
-This release significantly expands hardware compatibility across Daikin communicating systems, introducing comprehensive support for P1/P2 ductless and multi-split equipment, Daikin One Lite 24V thermostats, target humidity setpoint control, and native hardware calibration offset entities.
+This release focuses on establishing comprehensive feature and hardware compatibility parity with the community `daikinskyport` integration. Porting verified community discoveries and registers, this milestone adds full support for P1/P2 ductless and multi-split equipment, Daikin One Lite 24V thermostats, target humidity setpoint controls, and native hardware calibration offset entities.
 
 * **Test Suite:** Expanded from 360 to **433 automated unit tests** (100% pass rate).
 * **Static Typing & Quality Gates:** 0 errors across `ty check custom_components`, `ruff check .`, and `ruff format`.
