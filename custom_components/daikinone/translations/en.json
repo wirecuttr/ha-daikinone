@@ -31,6 +31,14 @@
           }
         }
       }
+    },
+    "number": {
+      "temperature_offset": {
+        "name": "Temperature offset"
+      },
+      "humidity_offset": {
+        "name": "Humidity offset"
+      }
     }
   }
 }

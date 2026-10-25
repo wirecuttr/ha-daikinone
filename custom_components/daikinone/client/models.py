@@ -218,3 +218,6 @@ class DaikinThermostat(DaikinDevice):
     air_quality_outdoor: DaikinOneAirQualitySensorOutdoor | None
     air_quality_indoor: DaikinOneAirQualitySensorIndoor | None
     equipment: dict[str, DaikinEquipment]
+    units: int | None = 0
+    temp_offset: float | None = None
+    hum_offset: int | None = None

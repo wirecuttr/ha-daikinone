@@ -30,6 +30,8 @@ F_SETPOINT_COOL_MIN = CelsiusField("EquipProtocolMinCoolSetpoint")
 F_SETPOINT_COOL_MAX = CelsiusField("EquipProtocolMaxCoolSetpoint")
 F_TEMP_OUTDOOR = CelsiusField("tempOutdoor")
 F_HUM_OUTDOOR = PercentField("humOutdoor")
+F_TEMP_OFFSET = CelsiusField("tempOffset")
+F_HUM_OFFSET = IntField("humOffset", Sentinel.NONE)
 
 
 # --- Air handler field catalog ---

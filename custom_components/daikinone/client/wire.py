@@ -47,6 +47,7 @@ class DaikinDeviceDataResponse(BaseModel):
 
 
 class Sentinel(IntEnum):
+    NONE = -32768
     U8 = 255
     U16 = 65535
     I16 = 32767
@@ -153,23 +154,25 @@ def read(data: dict[str, Any], f: Any) -> Any:
         return data.get(f.key, Sentinel.U8) < Sentinel.U8
     value = data[f.key]
     if isinstance(f, IntField):
-        return None if value == f.sentinel else round(value * f.scale)
+        return None if value is None or value == f.sentinel else round(value * f.scale)
     if isinstance(f, FloatField):
-        return None if value == f.sentinel else value * f.scale
+        return None if value is None or value == f.sentinel else value * f.scale
     if isinstance(f, TempField):
-        if value == f.sentinel:
+        if value is None or value == f.sentinel:
             return None
         t = value * f.scale
         return Temperature.from_fahrenheit(t) if f.unit == "F" else Temperature.from_celsius(t)
     if isinstance(f, RuntimeField):
-        return None if value == f.sentinel else timedelta(hours=value)
+        return None if value is None or value == f.sentinel else timedelta(hours=value)
     if isinstance(f, StringField):
+        if value is None:
+            return None
         s = value.strip()
         return None if "\ufffd" in s else s
     if isinstance(f, PercentField):
-        return value if 0 <= value <= 100 else None
+        return value if value is not None and 0 <= value <= 100 else None
     if isinstance(f, CelsiusField):
-        return Temperature.from_celsius(value) if f.min_c <= value <= f.max_c else None
+        return Temperature.from_celsius(value) if value is not None and f.min_c <= value <= f.max_c else None
     raise TypeError(f"unknown field spec: {type(f).__name__}")
 
 

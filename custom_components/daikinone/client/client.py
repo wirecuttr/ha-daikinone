@@ -107,3 +107,33 @@ class DaikinOne:
             method="PUT",
             body={"fanCirculateSpeed": fan_speed.value},
         )
+
+    async def set_temperature_offset(self, thermostat_id: str, offset: float) -> None:
+        """Set native temperature calibration offset."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"tempOffset": offset},
+        )
+        thermostat = self.__thermostats.get(thermostat_id)
+        if thermostat:
+            thermostat.temp_offset = offset
+
+    async def set_humidity_offset(self, thermostat_id: str, offset: int) -> None:
+        """Set native humidity calibration offset."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"humOffset": int(offset)},
+        )
+        thermostat = self.__thermostats.get(thermostat_id)
+        if thermostat:
+            thermostat.hum_offset = int(offset)
+
+    async def set_thermostat_temperature_offset(self, thermostat_id: str, offset: float) -> None:
+        """Set native temperature calibration offset (alias)."""
+        await self.set_temperature_offset(thermostat_id, offset)
+
+    async def set_thermostat_humidity_offset(self, thermostat_id: str, offset: int) -> None:
+        """Set native humidity calibration offset (alias)."""
+        await self.set_humidity_offset(thermostat_id, offset)

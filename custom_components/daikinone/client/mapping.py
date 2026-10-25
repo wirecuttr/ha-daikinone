@@ -38,6 +38,16 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
     if payload.data.get("ctSystemCapEmergencyHeat"):
         capabilities.add(DaikinThermostatCapability.EMERGENCY_HEAT)
 
+    temp_offset: float | None = None
+    if "tempOffset" in payload.data and payload.data["tempOffset"] is not None:
+        temp_val = read(payload.data, f.F_TEMP_OFFSET)
+        if temp_val is not None:
+            temp_offset = temp_val.celsius
+
+    hum_offset: int | None = None
+    if "humOffset" in payload.data and payload.data["humOffset"] is not None:
+        hum_offset = read(payload.data, f.F_HUM_OFFSET)
+
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -64,6 +74,9 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         air_quality_outdoor=map_air_quality_outdoor(payload),
         air_quality_indoor=map_air_quality_indoor(payload),
         equipment=map_equipment(payload),
+        units=payload.data.get("units", 0),
+        temp_offset=temp_offset,
+        hum_offset=hum_offset,
     )
 
 
