@@ -1,5 +1,7 @@
 """Domain models exposed by the Daikin client to the rest of the integration."""
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from enum import Enum, StrEnum, auto
 from typing import Literal
@@ -356,6 +358,10 @@ class DaikinThermostat(DaikinDevice):
     quiet_mode_stop_time: int | None = None
     quiet_mode_ho_display_enable: bool | None = None
     aux_heat_lockout_temp: float | None = None
+    hum_setpoint: int | None = None
+    dehum_setpoint: int | None = None
+    humidification_available: bool = False
+    dehumidification_available: bool = False
 
     num_media_filters: int | None = None
     num_electronic_filters: int | None = None

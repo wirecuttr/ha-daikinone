@@ -1277,6 +1277,59 @@ class TestDetermineHeatSource:
         thermostat = daikin_client.get_thermostats()["device123"]
         assert determine_heat_source(thermostat) == DaikinHeatSource.HEAT_PUMP
 
+
+class TestHumidityControlsMapping:
+    async def test_humidity_setpoint_and_capabilities_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "humSP": 45,
+                "dehumSP": 55,
+                "ctSystemCapHumidification": 1,
+                "ctSystemCapDehumidification": 1,
+            }
+        )
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.hum_setpoint == 45
+        assert thermostat.dehum_setpoint == 55
+        assert thermostat.humidification_available is True
+        assert thermostat.dehumidification_available is True
+
+    async def test_humidity_controls_absent_and_sentinels(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "humSP": 255,
+                "dehumSP": 255,
+                "ctSystemCapHumidification": 255,
+                "ctSystemCapDehumidification": 255,
+            }
+        )
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.hum_setpoint is None
+        assert thermostat.dehum_setpoint is None
+        assert thermostat.humidification_available is False
+        assert thermostat.dehumidification_available is False
+
+    async def test_humidity_controls_missing_keys_default_cleanly(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.hum_setpoint is None
+        assert thermostat.dehum_setpoint is None
+        assert thermostat.humidification_available is False
+        assert thermostat.dehumidification_available is False
+
+
     async def test_resistive_air_handler_heat_strips(self, daikin_client: DaikinOne) -> None:
         od = {
             **OUTDOOR_UNIT_DATA,

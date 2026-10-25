@@ -142,6 +142,18 @@ class UnitTypeField:
     key: str
 
 
+@dataclass(frozen=True, slots=True)
+class CapabilityField:
+    """Capability presence flag.
+
+    Reads as True when key is present, positive/truthy, and not the sentinel (default U8=255).
+    Missing keys or sentinels read as False.
+    """
+
+    key: str
+    sentinel: Sentinel = Sentinel.U8
+
+
 # --- Reader ---
 
 
@@ -161,11 +173,22 @@ def read(data: dict[str, Any], f: PercentField) -> int | None: ...
 def read(data: dict[str, Any], f: CelsiusField) -> Temperature | None: ...
 @overload
 def read(data: dict[str, Any], f: UnitTypeField) -> bool: ...
+@overload
+def read(data: dict[str, Any], f: CapabilityField) -> bool: ...
 
 
 def read(data: dict[str, Any], f: Any) -> Any:
     if isinstance(f, UnitTypeField):
         return data.get(f.key, Sentinel.U8) < Sentinel.U8
+    if isinstance(f, CapabilityField):
+        val = data.get(f.key)
+        if val is None or val == f.sentinel:
+            return False
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            return val > 0
+        return bool(val)
     value = data[f.key]
     if isinstance(f, IntField):
         return None if value == f.sentinel else round(value * f.scale)

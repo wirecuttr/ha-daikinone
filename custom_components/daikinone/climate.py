@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
+from custom_components.daikinone.client.client import DaikinOne
 from custom_components.daikinone.client.models import (
     DaikinThermostat,
     DaikinThermostatCapability,
@@ -120,6 +121,11 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
         if self._device.away_mode is not None:
             self._attr_supported_features |= ClimateEntityFeature.PRESET_MODE
             self._attr_preset_modes.append(PRESET_AWAY)
+
+        if self._device.humidification_available or self._device.dehumidification_available:
+            self._attr_supported_features |= ClimateEntityFeature.TARGET_HUMIDITY
+            self._attr_min_humidity = 25
+            self._attr_max_humidity = 65
 
     def get_hvac_modes(self) -> list[HVACMode]:
         modes: list[HVACMode] = []
@@ -317,6 +323,39 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
             check=lambda t: t.fan_mode == target_fan_mode,
         )
 
+    async def async_set_humidity(self, humidity: int) -> None:
+        """Set new target humidity."""
+        target = int(humidity)
+        log.debug("Setting thermostat target humidity to %s", target)
+
+        def update(t: DaikinThermostat) -> None:
+            t.hum_setpoint = target
+
+        await self.update_state_optimistically(
+            operation=lambda: self._client.set_humidity(self._device.id, target),
+            optimistic_update=update,
+            check=lambda t: t.hum_setpoint == target,
+        )
+
+    @property
+    def _client(self) -> DaikinOne:
+        return self._data.daikin
+
+    @property
+    def target_humidity(self) -> float | None:
+        """Return target humidity."""
+        return self._device.hum_setpoint
+
+    @property
+    def min_humidity(self) -> float:
+        """Return the minimum humidity."""
+        return 25.0
+
+    @property
+    def max_humidity(self) -> float:
+        """Return the maximum humidity."""
+        return 65.0
+
     async def async_get_device(self) -> DaikinThermostat:
         return self._data.daikin.get_thermostat(self._device.id)
 
@@ -346,6 +385,8 @@ class DaikinOneThermostat(DaikinOneEntity[DaikinThermostat], ClimateEntity):
             self._device.indoor_temperature.celsius if self._device.indoor_temperature else None
         )
         self._attr_current_humidity = self._device.indoor_humidity
+        if self._device.humidification_available or self._device.dehumidification_available:
+            self._attr_target_humidity = self._device.hum_setpoint
 
         # hvac current mode and preset
         match self._device.mode:

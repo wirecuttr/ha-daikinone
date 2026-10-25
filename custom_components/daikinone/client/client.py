@@ -363,3 +363,23 @@ class DaikinOne:
         )
         if thermostat_id in self.__thermostats:
             self.__thermostats[thermostat_id].quiet_mode_stop_time = slot
+
+    async def set_humidity(self, thermostat_id: str, humidity: int) -> None:
+        """Set target humidity setpoint."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"humSP": humidity},
+        )
+        if thermostat := self.__thermostats.get(thermostat_id):
+            thermostat.hum_setpoint = humidity
+
+    async def set_dehumidify_setpoint(self, thermostat_id: str, humidity: int) -> None:
+        """Set target dehumidification setpoint."""
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body={"dehumSP": humidity},
+        )
+        if thermostat := self.__thermostats.get(thermostat_id):
+            thermostat.dehum_setpoint = humidity

@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from custom_components.daikinone.client.wire import (
+    CapabilityField,
     CelsiusField,
     DaikinDeviceDataResponse,
     DaikinLocationResponse,
@@ -203,6 +204,29 @@ class TestCelsiusField:
     def test_zero_accepted(self) -> None:
         t = read({"k": 0}, CelsiusField("k"))
         assert t is not None and t.celsius == 0
+
+
+class TestCapabilityField:
+    def test_positive_int_is_true(self) -> None:
+        assert read({"k": 1}, CapabilityField("k")) is True
+
+    def test_zero_int_is_false(self) -> None:
+        assert read({"k": 0}, CapabilityField("k")) is False
+
+    def test_sentinel_returns_false(self) -> None:
+        assert read({"k": 255}, CapabilityField("k")) is False
+
+    def test_missing_key_returns_false(self) -> None:
+        assert read({}, CapabilityField("k")) is False
+
+    def test_none_returns_false(self) -> None:
+        assert read({"k": None}, CapabilityField("k")) is False
+
+    def test_bool_true_returns_true(self) -> None:
+        assert read({"k": True}, CapabilityField("k")) is True
+
+    def test_bool_false_returns_false(self) -> None:
+        assert read({"k": False}, CapabilityField("k")) is False
 
 
 @dataclass(frozen=True)

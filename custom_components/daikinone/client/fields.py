@@ -6,6 +6,7 @@ call without repeating the sentinel/scale/unit details at every call site.
 """
 
 from custom_components.daikinone.client.wire import (
+    CapabilityField,
     CelsiusField,
     FloatField,
     IntField,
@@ -29,6 +30,10 @@ F_SETPOINT_COOL_MIN = CelsiusField("EquipProtocolMinCoolSetpoint")
 F_SETPOINT_COOL_MAX = CelsiusField("EquipProtocolMaxCoolSetpoint")
 F_TEMP_OUTDOOR = CelsiusField("tempOutdoor")
 F_HUM_OUTDOOR = PercentField("humOutdoor")
+F_HUM_SETPOINT = PercentField("humSP")
+F_DEHUM_SETPOINT = PercentField("dehumSP")
+F_CAP_HUMIDIFICATION = CapabilityField("ctSystemCapHumidification")
+F_CAP_DEHUMIDIFICATION = CapabilityField("ctSystemCapDehumidification")
 
 
 # --- Air handler field catalog ---

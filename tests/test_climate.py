@@ -47,6 +47,10 @@ def _create_mock_thermostat(
     status: DaikinThermostatStatus = DaikinThermostatStatus.IDLE,
     away_mode: bool | None = None,
     equipment: dict | None = None,
+    hum_setpoint: int | None = 45,
+    dehum_setpoint: int | None = 55,
+    humidification_available: bool = False,
+    dehumidification_available: bool = False,
 ) -> DaikinThermostat:
     return DaikinThermostat(
         id=thermostat_id,
@@ -73,6 +77,10 @@ def _create_mock_thermostat(
         outdoor_humidity=60,
         air_quality_outdoor=None,
         air_quality_indoor=None,
+        hum_setpoint=hum_setpoint,
+        dehum_setpoint=dehum_setpoint,
+        humidification_available=humidification_available,
+        dehumidification_available=dehumidification_available,
         one_clean_fan_active=None,
         dual_fuel_furnace_lockout_enable=None,
         equipment=equipment if equipment is not None else {},
@@ -335,6 +343,125 @@ class TestClimateHVACAction:
         climate = DaikinOneThermostat(_climate_desc(), mock_data, t)
         climate.update_entity_attributes()
         assert climate.hvac_action == HVACAction.PREHEATING
+
+
+_make_mock_thermostat = _create_mock_thermostat
+
+
+class TestTargetHumidityFeatureFlag:
+    def test_target_humidity_supported_when_humidification_available(self, mock_data: DaikinOneData) -> None:
+        thermostat = _make_mock_thermostat(humidification_available=True)
+        entity = DaikinOneThermostat(
+            _climate_desc(),
+            mock_data,
+            thermostat,
+        )
+        assert ClimateEntityFeature.TARGET_HUMIDITY in entity.supported_features
+        assert entity.min_humidity == 25
+        assert entity.max_humidity == 65
+        assert entity.target_humidity == 45
+
+    def test_target_humidity_supported_when_dehumidification_available(self, mock_data: DaikinOneData) -> None:
+        thermostat = _make_mock_thermostat(dehumidification_available=True)
+        entity = DaikinOneThermostat(
+            _climate_desc(),
+            mock_data,
+            thermostat,
+        )
+        assert ClimateEntityFeature.TARGET_HUMIDITY in entity.supported_features
+        assert entity.min_humidity == 25
+        assert entity.max_humidity == 65
+
+    def test_target_humidity_not_supported_when_neither_available(self, mock_data: DaikinOneData) -> None:
+        thermostat = _make_mock_thermostat(
+            humidification_available=False,
+            dehumidification_available=False,
+        )
+        entity = DaikinOneThermostat(
+            _climate_desc(),
+            mock_data,
+            thermostat,
+        )
+        assert ClimateEntityFeature.TARGET_HUMIDITY not in entity.supported_features
+
+    def test_target_humidity_none_when_unconfigured(self, mock_data: DaikinOneData) -> None:
+        thermostat = _make_mock_thermostat(
+            humidification_available=True,
+            hum_setpoint=None,
+        )
+        entity = DaikinOneThermostat(
+            _climate_desc(),
+            mock_data,
+            thermostat,
+        )
+        assert entity.target_humidity is None
+
+
+class TestClimateAsyncSetHumidity:
+    async def test_async_set_humidity(self, mock_data: DaikinOneData) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        thermostat = _make_mock_thermostat(humidification_available=True, hum_setpoint=40)
+        daikin_client = mock_data.daikin
+        daikin_client._DaikinOne__thermostats[thermostat.id] = thermostat
+
+        entity = DaikinOneThermostat(
+            _climate_desc(),
+            mock_data,
+            thermostat,
+        )
+        entity.async_write_ha_state = MagicMock()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = None
+            with patch.object(mock_data, "update", new_callable=AsyncMock):
+                await entity.async_set_humidity(50)
+
+            mock_req.assert_awaited_once_with(
+                url="https://api.daikinskyport.com/deviceData/device123",
+                method="PUT",
+                body={"humSP": 50},
+            )
+        assert entity.target_humidity == 50
+        assert entity._attr_target_humidity == 50
+
+
+class TestClientHumidityControls:
+    async def test_set_humidity(self, mock_data: DaikinOneData) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        thermostat = _make_mock_thermostat(hum_setpoint=40)
+        daikin_client = mock_data.daikin
+        daikin_client._DaikinOne__thermostats[thermostat.id] = thermostat
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = None
+            await daikin_client.set_humidity("device123", 45)
+
+            mock_req.assert_awaited_once_with(
+                url="https://api.daikinskyport.com/deviceData/device123",
+                method="PUT",
+                body={"humSP": 45},
+            )
+        assert daikin_client.get_thermostat("device123").hum_setpoint == 45
+
+    async def test_set_dehumidify_setpoint(self, mock_data: DaikinOneData) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        thermostat = _make_mock_thermostat(dehum_setpoint=60)
+        daikin_client = mock_data.daikin
+        daikin_client._DaikinOne__thermostats[thermostat.id] = thermostat
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = None
+            await daikin_client.set_dehumidify_setpoint("device123", 55)
+
+            mock_req.assert_awaited_once_with(
+                url="https://api.daikinskyport.com/deviceData/device123",
+                method="PUT",
+                body={"dehumSP": 55},
+            )
+        assert daikin_client.get_thermostat("device123").dehum_setpoint == 55
 
     async def test_hvac_action_preheating_zero_airflow(self, mock_data: DaikinOneData) -> None:
         od = _create_outdoor_unit(mode="Heating", compressor_speed=30, heat_demand=50)

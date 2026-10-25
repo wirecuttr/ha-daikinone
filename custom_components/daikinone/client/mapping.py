@@ -306,6 +306,10 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         system_errors=map_system_errors(payload.data),
         sched_resume_time=sched_resume_time,
         sched_override_duration=sched_override_duration,
+        hum_setpoint=read(payload.data, f.F_HUM_SETPOINT) if f.F_HUM_SETPOINT.key in payload.data else None,
+        dehum_setpoint=read(payload.data, f.F_DEHUM_SETPOINT) if f.F_DEHUM_SETPOINT.key in payload.data else None,
+        humidification_available=read(payload.data, f.F_CAP_HUMIDIFICATION),
+        dehumidification_available=read(payload.data, f.F_CAP_DEHUMIDIFICATION),
     )
 
 
