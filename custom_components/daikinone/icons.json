@@ -81,6 +81,12 @@
     "number": {
       "dual_fuel_balance_point": {
         "default": "mdi:thermometer"
+      },
+      "temperature_offset": {
+        "default": "mdi:thermometer"
+      },
+      "humidity_offset": {
+        "default": "mdi:water-percent"
       }
     }
   }

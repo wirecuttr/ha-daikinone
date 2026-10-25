@@ -1536,3 +1536,61 @@ class TestOneLiteMapping:
         assert tstat.set_point_cool.celsius == 22.0
         assert tstat.schedule.enabled is False
         assert tstat.status is DaikinThermostatStatus.COOLING
+
+
+class TestCalibrationOffsetsMapping:
+    async def test_calibration_offsets_mapped_correctly(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["tempOffset"] = -1.5
+        device_data["data"]["humOffset"] = -3
+        device_data["data"]["units"] = 1
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset == -1.5
+        assert tstat.hum_offset == -3
+        assert tstat.units == 1
+
+    async def test_calibration_offsets_zero_preserved(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["tempOffset"] = 0
+        device_data["data"]["humOffset"] = 0
+        device_data["data"]["units"] = 0
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset == 0.0
+        assert tstat.hum_offset == 0
+        assert tstat.units == 0
+
+    async def test_calibration_offsets_none_when_keys_missing(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].pop("tempOffset", None)
+        device_data["data"].pop("humOffset", None)
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset is None
+        assert tstat.hum_offset is None
+
+    async def test_calibration_offsets_sentinels_become_none(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["tempOffset"] = 255
+        device_data["data"]["humOffset"] = 255
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset is None
+        assert tstat.hum_offset is None

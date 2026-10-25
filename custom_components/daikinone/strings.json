@@ -210,6 +210,12 @@
     "number": {
       "dual_fuel_balance_point": {
         "name": "Dual fuel balance point"
+      },
+      "temperature_offset": {
+        "name": "Temperature offset"
+      },
+      "humidity_offset": {
+        "name": "Humidity offset"
       }
     }
   },

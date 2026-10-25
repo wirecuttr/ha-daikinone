@@ -263,6 +263,16 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         else None
     )
     sched_override_duration = payload.data.get("schedOverrideDuration")
+
+    temp_offset: float | None = None
+    if "tempOffset" in payload.data and payload.data["tempOffset"] is not None:
+        temp_val = read(payload.data, f.F_TEMP_OFFSET)
+        if temp_val is not None:
+            temp_offset = temp_val.celsius
+
+    hum_offset: int | None = None
+    if "humOffset" in payload.data and payload.data["humOffset"] is not None:
+        hum_offset = read(payload.data, f.F_HUM_OFFSET)
     return DaikinThermostat(
         id=payload.id,
         location_id=payload.locationId,
@@ -376,6 +386,9 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         humidification_available=read(payload.data, f.F_CAP_HUMIDIFICATION),
         dehumidification_available=read(payload.data, f.F_CAP_DEHUMIDIFICATION),
         is_one_lite=is_one_lite,
+        units=payload.data.get("units", 0),
+        temp_offset=temp_offset,
+        hum_offset=hum_offset,
     )
 
 

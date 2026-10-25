@@ -34,6 +34,8 @@ F_HUM_SETPOINT = PercentField("humSP")
 F_DEHUM_SETPOINT = PercentField("dehumSP")
 F_CAP_HUMIDIFICATION = CapabilityField("ctSystemCapHumidification")
 F_CAP_DEHUMIDIFICATION = CapabilityField("ctSystemCapDehumidification")
+F_TEMP_OFFSET = CelsiusField("tempOffset")
+F_HUM_OFFSET = IntField("humOffset", Sentinel.U8)
 
 
 # --- Air handler field catalog ---
