@@ -7,6 +7,41 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.MM
 
 ---
 
+## [2026.10.2] - 2026-10-25
+
+### Overview
+This release significantly expands hardware compatibility across Daikin communicating systems, introducing comprehensive support for P1/P2 ductless and multi-split equipment, Daikin One Lite 24V thermostats, target humidity setpoint control, and native hardware calibration offset entities.
+
+* **Test Suite:** Expanded from 360 to **433 automated unit tests** (100% pass rate).
+* **Static Typing & Quality Gates:** 0 errors across `ty check custom_components`, `ruff check .`, and `ruff format`.
+* **Upstream PRs:** [#149](https://github.com/zlangbert/ha-daikinone/pull/149), [#150](https://github.com/zlangbert/ha-daikinone/pull/150), [#151](https://github.com/zlangbert/ha-daikinone/pull/151).
+
+---
+
+### Features & Enhancements
+
+#### 1. P1/P2 Ductless & Multi-Split Hardware Compatibility
+* **Heating and Cooling Capability Fallbacks:** Enables climate mode discovery on P1/P2 ductless systems (`FDMQ`, `FTX`, `FTWR`, `FXSQ`) lacking unitary registers via `P1P2S21HeatingCapability` and `P1P2S21CoolingCapability`.
+* **Three-Tier Setpoint Limit Resolution:** Temperature min/max setpoint boundaries resolve gracefully across unitary bus bounds (`EquipProtocol*`), P1/P2 bus bounds (`P1P2*`), and global thermostat bounds (`tempSP*`).
+* **Sub-Device Modeling in Home Assistant Device Registry:** Physical P1/P2 indoor units (single-zone and `Unit1` through `Unit15` multi-split branches) and outdoor condensers are mapped as child devices of the thermostat.
+* **Validity-Gated Diagnostic Telemetry:** Telemetry sensors (suction/discharge air temperatures, liquid/gas pipe temperatures, heat exchanger temperatures, EEV pulse counters, and compressor/fan operating runtimes) are strictly gated on hardware validity flags (`P1P2OutdoorUnitDataValid` and `<Register>Valid`) so unpopulated zero values map to `None`.
+* **P1/P2 Fan Circulate Mode 12 Pipeline:** Controls indoor blower circulation on P1/P2 systems via an immediate Field Setting Mode 12 transaction (`SW3`/`SW6` switches) with an asynchronous 15-second delayed reset task to Mode 0, featuring active task cancellation to eliminate race conditions.
+
+#### 2. Target Humidity & Dehumidification Setpoint Controls
+* **Target Humidity Setpoint:** Adds `ClimateEntityFeature.TARGET_HUMIDITY` to the climate platform when humidification or dehumidification hardware is detected (`ctSystemCapHumidification` or `ctSystemCapDehumidification`).
+* **Dynamic Setpoint Service:** Supports setting target indoor humidity via `climate.set_humidity` with optimistic state updates and hardware limit clamps (25% to 65%).
+
+#### 3. Daikin One Lite 24V Support (`D2271` / `ONELITE_24V`)
+* **Alternate Payload Mapping:** Adds seamless fallback resolution for Daikin One Lite 24V thermostats communicating via alternate Skyport cloud keys (`coolSP`/`heatSP` for active setpoints, `spaceTemp`/`spaceHum` for indoor telemetry, `progOn` for schedule enablement, and `away` for geofencing status).
+* **Defensive Cloud Null Guards:** Hardens ingestion against null weather and timezone attributes returned by One Lite cloud endpoints.
+
+#### 4. Native Temperature & Humidity Calibration Offsets
+* **Direct Hardware Number Entities:** Exposes `number.<thermostat>_temperature_offset` and `number.<thermostat>_humidity_offset` configuration entities.
+* **Synchronized Display & Demands:** Calibration adjustments write directly to hardware registers (`tempOffset` and `humOffset`), immediately updating physical thermostat screens, indoor control algorithms, and Home Assistant entity states.
+* **Configured Step & Limit Enforcements:** Supports $\pm 5.5^\circ\text{C}$ in $0.5^\circ\text{C}$ steps (Celsius) or $\pm 10^\circ\text{F}$ in $1^\circ\text{F}$ steps (Fahrenheit), and $\pm 15\%$ in $1\%$ steps for humidity.
+
+---
+
 ## [2026.10.1] - 2026-10-24
 
 ### Overview
