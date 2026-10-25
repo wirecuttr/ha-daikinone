@@ -1,24 +1,35 @@
+from custom_components.daikinone.utils import Temperature
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from custom_components.daikinone.client.client import DaikinOne
+from custom_components.daikinone.client.mapping import (
+    determine_heat_source,
+    map_location,
+    map_thermostat,
+)
 from custom_components.daikinone.client.models import (
     DaikinEEVCoil,
+    DaikinHeatSource,
     DaikinIndoorUnit,
+    DaikinOneAirQualitySensorSummaryLevel,
     DaikinOutdoorUnit,
     DaikinOutdoorUnitHeaterStatus,
     DaikinOutdoorUnitReversingValveStatus,
     DaikinP1P2IndoorUnit,
     DaikinP1P2OutdoorUnit,
+    DaikinThermostatCapability,
+    DaikinThermostatFanCirculateDuration,
     DaikinThermostatFanMode,
     DaikinThermostatFanSpeed,
     DaikinThermostatMode,
     DaikinThermostatStatus,
     DaikinUserCredentials,
 )
-from custom_components.daikinone.utils import Temperature
+from custom_components.daikinone.client.wire import DaikinDeviceDataResponse, DaikinLocationResponse
 
 
 @pytest.fixture
@@ -195,100 +206,6 @@ def _make_one_lite_device(
 # --- End-to-end: granular sanitization through DaikinOne.update ---
 
 
-P1P2_SINGLE_INDOOR_DATA: dict[str, Any] = {
-    "P1P2IndoorUnitDataValid": True,
-    "P1P2IndoorUnitModelNameManual": "FDMQ24RVJU\x00\x00\x00\x00\x00\x00",
-    "P1P2IndoorUnitModelName": "FDMQ24RVJU\x00\x00\x00\x00\x00\x00",
-    "P1P2IndoorUnitModelNameValid": True,
-    "P1P2IndoorUnitSerialNumber": "E001234\x00\x00\x00",
-    "P1P2IndoorSuctionAirThermistor": 21.5,
-    "P1P2IndoorSuctionAirThermistorValid": True,
-    "P1P2IndoorUnitDischargeAirThermistor": 0.0,
-    "P1P2IndoorUnitDischargeAirThermistorValid": False,
-    "P1P2IndoorUnitHeatExchangerThermistor": 12.3,
-    "P1P2IndoorUnitHeatExchangerThermistorValid": True,
-    "P1P2IndoorUnitHeatExchangerGasPipeThermistor": 15.4,
-    "P1P2IndoorUnitHeatExchangerGasPipeThermistorValid": True,
-    "P1P2IndoorUnitEEVOpenPulses": 250,
-    "P1P2IndoorUnitEEVOpenPulsesValid": True,
-    "P1P2IndoorUnitEnergizedTime": 1200,
-    "P1P2IndoorUnitEnergizedTimeValid": True,
-    "P1P2IndoorUnitOperatingTime": 800,
-    "P1P2IndoorUnitOperatingTimeValid": True,
-    "P1P2IndoorUnitFanOperationTime": 950,
-    "P1P2IndoorUnitFanOperationTimeValid": True,
-}
-
-P1P2_OUTDOOR_DATA_VALID: dict[str, Any] = {
-    "P1P2OutdoorUnitDataValid": True,
-    "P1P2OutdoorUnitModelNameManual": "4MXL36TVJU\x00\x00\x00",
-    "P1P2OutdoorUnitModelName": "4MXL36TVJU",
-    "P1P2OutdoorUnitModelNameValid": True,
-    "P1P2OutdoorUnitSerialNumber": "OD123456\x00\x00",
-    "P1P2OutdoorAirThermistor": 25.0,
-    "P1P2OutdoorAirThermistorValid": True,
-    "P1P2OutdoorUnitHeatExchangerThermistor": 35.2,
-    "P1P2OutdoorUnitHeatExchangerThermistorValid": True,
-    "P1P2OutdoorUnitHeatExchangerGasPipeThermistor": 40.1,
-    "P1P2OutdoorUnitHeatExchangerGasPipeThermistorValid": True,
-    "P1P2OutdoorUnitHeatExchangerDeicerThermistor": 30.0,
-    "P1P2OutdoorUnitHeatExchangerDeicerThermistorValid": True,
-    "P1P2OutdoorUnitDischargePipeThermistor": 65.5,
-    "P1P2OutdoorUnitDischargePipeThermistorValid": True,
-    "P1P2OutdoorUnitLiquidPipeThermistor": 33.1,
-    "P1P2OutdoorUnitLiquidPipeThermistorValid": True,
-    "P1P2OutdoorUnitEEVOpenPulses": 180,
-    "P1P2OutdoorUnitEEVOpenPulsesValid": True,
-    "P1P2OutdoorUnitOperatingTime": 1500,
-    "P1P2OutdoorUnitOperatingTimeValid": True,
-    "P1P2OutdoorUnitCompressor1OperationTime": 1400,
-    "P1P2OutdoorUnitCompressor1OperationTimeValid": True,
-    "P1P2OutdoorUnitCompressor2OperationTime": 0,
-    "P1P2OutdoorUnitCompressor2OperationTimeValid": True,
-    "P1P2OutdoorUnitFan1OperationTime": 1450,
-    "P1P2OutdoorUnitFan1OperationTimeValid": True,
-    "P1P2OutdoorUnitFan2OperationTime": 0,
-    "P1P2OutdoorUnitFan2OperationTimeValid": False,
-}
-
-P1P2_OUTDOOR_DATA_INVALID_RX24: dict[str, Any] = {
-    "P1P2OutdoorUnitDataValid": False,
-    "P1P2OutdoorUnitModelNameManual": "RX24RMVJU\x00\x00\x00",
-    "P1P2OutdoorUnitModelName": "7J-/071\x00\x00\x00\x00\x00\x00",
-    "P1P2OutdoorUnitModelNameValid": True,
-    "P1P2OutdoorUnitSerialNumber": "g003661h\x00\x00\x00",
-    "P1P2OutdoorAirThermistor": 0,
-    "P1P2OutdoorAirThermistorValid": False,
-    "P1P2OutdoorUnitHeatExchangerThermistor": 0,
-    "P1P2OutdoorUnitHeatExchangerThermistorValid": False,
-}
-
-NO_EQUIPMENT: dict[str, Any] = {
-    "ctAHUnitType": 255,
-    "ctIFCUnitType": 255,
-    "ctOutdoorUnitType": 255,
-    "ctCoilUnitType": 255,
-}
-
-
-def _make_device(*equipment_blocks: dict[str, Any]) -> dict[str, Any]:
-    data: dict[str, Any] = {**COMMON_THERMOSTAT_DATA, **NO_EQUIPMENT}
-    for block in equipment_blocks:
-        data.update(block)
-    return {
-        "id": "device123",
-        "locationId": "loc456",
-        "name": "Test Thermostat",
-        "model": "ONEPLUS",
-        "firmware": "1.0.0",
-        "online": True,
-        "data": data,
-    }
-
-
-# --- End-to-end: granular sanitization through DaikinOne.update ---
-
-
 class TestMappingPreservesValidFields:
     async def test_air_handler_garbage_demand_becomes_none(self, daikin_client: DaikinOne) -> None:
         ah = {**AIR_HANDLER_DATA, "ctAHFanRequestedDemand": 255, "ctAHHeatRequestedDemand": 255}
@@ -331,6 +248,44 @@ class TestMappingPreservesValidFields:
         assert unit.inverter_fin_temperature is None
         assert unit.coil_temperature is not None
 
+
+class TestBalancePointMapping:
+    @pytest.mark.parametrize(
+        ("raw_value", "expected"),
+        [
+            (4.5, 4.5),
+            (4, 4.0),
+            ("4.5", 4.5),
+            (None, None),
+            ("invalid", None),
+            (float("nan"), None),
+            (float("inf"), None),
+            (255, None),
+            (65535, None),
+            (-32768, None),
+        ],
+    )
+    async def test_aux_heat_lockout_temperature_mapping(
+        self, daikin_client: DaikinOne, raw_value: Any, expected: float | None
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"]["auxHeatLockoutTemp"] = raw_value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        assert daikin_client.get_thermostats()["device123"].aux_heat_lockout_temp == expected
+
+    async def test_aux_heat_lockout_temperature_missing(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [_make_device()]
+            await daikin_client.update()
+
+        assert daikin_client.get_thermostats()["device123"].aux_heat_lockout_temp is None
+
+
+class TestAdditionalValidMappings:
     async def test_outdoor_garbage_runtime_becomes_none(self, daikin_client: DaikinOne) -> None:
         od = {**OUTDOOR_UNIT_DATA, "ctOutdoorCompressorRunTime": 4294967295}
         device_data = _make_device(od)
@@ -378,6 +333,174 @@ class TestMappingPreservesValidFields:
         thermostats = daikin_client.get_thermostats()
         assert "device123" in thermostats
         assert thermostats["device123"].indoor_humidity == 45
+
+    async def test_dual_fuel_fields_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctDualFuelFurnaceLockoutEnable"] = True
+        device_data["data"]["auxHeatLockoutTemp"] = 4.5
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.dual_fuel_furnace_lockout_enable is True
+
+    async def test_dual_fuel_fields_absent_are_none(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.dual_fuel_furnace_lockout_enable is None
+
+
+class TestFanCirculationAndNightModeMapping:
+    async def test_optional_fields_map_when_present(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "fanCirculateStart": 4,
+                "fanCirculateStop": 92,
+                "fanCirculateDuration": 2,
+                "nightModeEnabled": True,
+                "nightModeActive": False,
+                "nightModeStart": 88,
+                "nightModeStop": 28,
+                "nightModeLightBarAllowed": True,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.fan_circulate_start == 4
+        assert thermostat.fan_circulate_stop == 92
+        assert thermostat.fan_circulate_duration is DaikinThermostatFanCirculateDuration.MIN_15
+        assert thermostat.night_mode_enabled is True
+        assert thermostat.night_mode_active is False
+        assert thermostat.night_mode_start == 88
+        assert thermostat.night_mode_stop == 28
+        assert thermostat.night_mode_light_bar_allowed is True
+
+    async def test_optional_fields_are_none_when_absent(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [_make_device()]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.fan_circulate_start is None
+        assert thermostat.fan_circulate_stop is None
+        assert thermostat.fan_circulate_duration is None
+        assert thermostat.night_mode_enabled is None
+        assert thermostat.night_mode_active is None
+        assert thermostat.night_mode_start is None
+        assert thermostat.night_mode_stop is None
+        assert thermostat.night_mode_light_bar_allowed is None
+
+    async def test_unknown_duty_cycle_uses_unknown_enum(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["fanCirculateDuration"] = 255
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        assert (
+            daikin_client.get_thermostats()["device123"].fan_circulate_duration
+            is DaikinThermostatFanCirculateDuration.UNKNOWN
+        )
+
+    async def test_sentinel_schedule_values_are_treated_as_unavailable(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "fanCirculateStart": 255,
+                "fanCirculateStop": 65535,
+                "nightModeEnabled": 255,
+                "nightModeActive": 65535,
+                "nightModeStart": -32768,
+                "nightModeStop": 255,
+                "nightModeLightBarAllowed": 255,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.fan_circulate_start is None
+        assert thermostat.fan_circulate_stop is None
+        assert thermostat.night_mode_enabled is None
+        assert thermostat.night_mode_active is None
+        assert thermostat.night_mode_start is None
+        assert thermostat.night_mode_stop is None
+        assert thermostat.night_mode_light_bar_allowed is None
+
+
+class TestQuietModeMapping:
+    async def test_quiet_mode_fields_map_when_present(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "ctOutdoorQuietModeEnabled": 1,
+                "quietModeActive": 0,
+                "quietModeStartTime": 88,
+                "quietModeStopTime": 28,
+                "ctQuietModeHODisplayEnable": True,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.quiet_mode_enabled is True
+        assert thermostat.quiet_mode_active is False
+        assert thermostat.quiet_mode_start_time == 88
+        assert thermostat.quiet_mode_stop_time == 28
+        assert thermostat.quiet_mode_ho_display_enable is True
+
+    async def test_quiet_mode_fields_are_none_when_absent(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [_make_device()]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.quiet_mode_enabled is None
+        assert thermostat.quiet_mode_active is None
+        assert thermostat.quiet_mode_start_time is None
+        assert thermostat.quiet_mode_stop_time is None
+        assert thermostat.quiet_mode_ho_display_enable is None
+
+    async def test_sentinel_quiet_mode_values_are_treated_as_unavailable(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "ctOutdoorQuietModeEnabled": 255,
+                "quietModeActive": 255,
+                "quietModeStartTime": 255,
+                "quietModeStopTime": 65535,
+                "ctQuietModeHODisplayEnable": 255,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.quiet_mode_enabled is None
+        assert thermostat.quiet_mode_active is None
+        assert thermostat.quiet_mode_start_time is None
+        assert thermostat.quiet_mode_stop_time is None
+        assert thermostat.quiet_mode_ho_display_enable is None
 
 
 class TestEquipmentSkippedOnInvalidIdentity:
@@ -623,6 +746,952 @@ class TestEnumSanitization:
         )
         assert unit.crank_case_heater is DaikinOutdoorUnitHeaterStatus.UNKNOWN
 
+    @pytest.mark.parametrize(
+        ("wire_value", "expected_enum"),
+        [
+            (0, DaikinOneAirQualitySensorSummaryLevel.GOOD),
+            (1, DaikinOneAirQualitySensorSummaryLevel.MODERATE),
+            (2, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY_SENSITIVE),
+            (3, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY),
+            (4, DaikinOneAirQualitySensorSummaryLevel.VERY_UNHEALTHY),
+            (5, DaikinOneAirQualitySensorSummaryLevel.HAZARDOUS),
+        ],
+    )
+    async def test_outdoor_air_quality_epa_levels_mapped(
+        self,
+        daikin_client: DaikinOne,
+        wire_value: int,
+        expected_enum: DaikinOneAirQualitySensorSummaryLevel,
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "aqOutdoorAvailable": True,
+                "aqOutdoorValue": 50,
+                "aqOutdoorLevel": wire_value,
+                "aqOutdoorParticles": 10,
+                "aqOutdoorOzone": 20,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.air_quality_outdoor is not None
+        assert thermostat.air_quality_outdoor.aqi_summary_level is expected_enum
+
+    @pytest.mark.parametrize(
+        "wire_value",
+        [255, -1, 6],
+    )
+    async def test_outdoor_air_quality_unexpected_values_fallback_to_unknown(
+        self, daikin_client: DaikinOne, wire_value: int
+    ) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "aqOutdoorAvailable": True,
+                "aqOutdoorValue": 50,
+                "aqOutdoorLevel": wire_value,
+                "aqOutdoorParticles": 10,
+                "aqOutdoorOzone": 20,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.air_quality_outdoor is not None
+        assert thermostat.air_quality_outdoor.aqi_summary_level is DaikinOneAirQualitySensorSummaryLevel.UNKNOWN
+
+    @pytest.mark.parametrize(
+        ("wire_value", "expected_enum"),
+        [
+            (0, DaikinOneAirQualitySensorSummaryLevel.GOOD),
+            (1, DaikinOneAirQualitySensorSummaryLevel.MODERATE),
+            (2, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY_SENSITIVE),
+            (3, DaikinOneAirQualitySensorSummaryLevel.UNHEALTHY),
+            (4, DaikinOneAirQualitySensorSummaryLevel.VERY_UNHEALTHY),
+            (5, DaikinOneAirQualitySensorSummaryLevel.HAZARDOUS),
+            (255, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+            (-1, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+            (6, DaikinOneAirQualitySensorSummaryLevel.UNKNOWN),
+        ],
+    )
+    def test_air_quality_summary_level_enum_direct(
+        self, wire_value: int, expected_enum: DaikinOneAirQualitySensorSummaryLevel
+    ) -> None:
+        assert DaikinOneAirQualitySensorSummaryLevel(wire_value) is expected_enum
+
+
+class TestOneCleanFan:
+    """oneCleanFanActive maps to the thermostat's One Clean state; payloads that
+    don't report the feature (e.g. P1/P2 mini-splits) map to None so the switch
+    entity is not created."""
+
+    async def _thermostat(self, daikin_client: DaikinOne, device_data: dict[str, Any]):
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        return daikin_client.get_thermostats()["device123"]
+
+    async def test_inactive_state_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["oneCleanFanActive"] = False
+
+        thermostat = await self._thermostat(daikin_client, device_data)
+        assert thermostat.one_clean_fan_active is False
+
+    async def test_active_state_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["oneCleanFanActive"] = True
+
+        thermostat = await self._thermostat(daikin_client, device_data)
+        assert thermostat.one_clean_fan_active is True
+
+    async def test_missing_key_maps_to_none(self, daikin_client: DaikinOne) -> None:
+        thermostat = await self._thermostat(daikin_client, _make_device())
+        assert thermostat.one_clean_fan_active is None
+
+
+class TestOutdoorOperationModeMapping:
+    async def test_operation_mode_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device({**OUTDOOR_UNIT_DATA, "ctOutdoorOperationMode": 9})
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        unit = next(
+            e
+            for e in daikin_client.get_thermostats()["device123"].equipment.values()
+            if isinstance(e, DaikinOutdoorUnit)
+        )
+        assert unit.operation_mode == 9
+
+    async def test_operation_mode_sentinel_becomes_none(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device({**OUTDOOR_UNIT_DATA, "ctOutdoorOperationMode": 255})
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        unit = next(
+            e
+            for e in daikin_client.get_thermostats()["device123"].equipment.values()
+            if isinstance(e, DaikinOutdoorUnit)
+        )
+        assert unit.operation_mode is None
+
+
+class TestMapThermostatAwayMode:
+    def test_map_thermostat_away_mode_active(self) -> None:
+        """Verify that geofencingAway: true maps to away_mode=True."""
+        device_data = _make_device()
+        device_data["data"]["geofencingAway"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is True
+
+    def test_map_thermostat_away_mode_inactive(self) -> None:
+        """Verify that geofencingAway: false maps to away_mode=False."""
+        device_data = _make_device()
+        device_data["data"]["geofencingAway"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is False
+
+    def test_map_thermostat_away_mode_absent(self) -> None:
+        """Verify that missing geofencingAway preserves away_mode=None (nullable guard)."""
+        device_data = _make_device()
+        device_data["data"].pop("geofencingAway", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.away_mode is None
+
+
+class TestThermostatEmergencyHeatCapability:
+    """Test emergency heat capability detection with modeEmHeatAvailable guard (Issue #25)."""
+
+    def test_emergency_heat_capability_when_em_heat_available_true(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_omitted_when_em_heat_available_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+    def test_emergency_heat_capability_backward_compatibility_when_field_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"].pop("modeEmHeatAvailable", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_when_system_cap_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = False
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+
+class TestMapLocation:
+    """Tests for map_location parsing of Daikin Skyport location responses."""
+
+    def test_map_location_valid_json_address(self) -> None:
+        raw = {
+            "id": "e0a388d4-629b-11ec-a89c-4f75309dfd56",
+            "name": "homeHA",
+            "address": '{"address":"88 Canada Olympic Rd","apt":"Suite 100"}',
+            "city": "Calgary",
+            "province": "AB",
+            "postalCode": "T3B5R5",
+            "country": "CA",
+            "timeZone": "America/Regina",
+            "latitude": 51.087439,
+            "longitude": -114.206518,
+            "hasOwner": True,
+        }
+        loc = map_location(DaikinLocationResponse(**raw))
+
+        assert loc.id == "e0a388d4-629b-11ec-a89c-4f75309dfd56"
+        assert loc.name == "homeHA"
+        assert loc.street_address == "88 Canada Olympic Rd"
+        assert loc.apt == "Suite 100"
+        assert loc.city == "Calgary"
+        assert loc.province == "AB"
+        assert loc.postal_code == "T3B5R5"
+        assert loc.country == "CA"
+        assert loc.time_zone == "America/Regina"
+        assert loc.latitude == pytest.approx(51.087439)
+        assert loc.longitude == pytest.approx(-114.206518)
+        assert loc.has_owner is True
+
+    def test_map_location_plain_string_address(self) -> None:
+        raw = {
+            "id": "loc-plain",
+            "name": "Mountain Cabin",
+            "address": "123 Aspen Way",
+            "city": "Banff",
+            "province": "AB",
+            "postalCode": "T0L 0C0",
+            "country": "CA",
+            "timeZone": "America/Edmonton",
+            "latitude": 51.1784,
+            "longitude": -115.5708,
+            "hasOwner": False,
+        }
+        loc = map_location(DaikinLocationResponse(**raw))
+
+        assert loc.id == "loc-plain"
+        assert loc.name == "Mountain Cabin"
+        assert loc.street_address == "123 Aspen Way"
+        assert loc.apt == ""
+        assert loc.city == "Banff"
+        assert loc.has_owner is False
+
+    def test_map_location_missing_optional_fields(self) -> None:
+        raw = {
+            "id": "loc-min",
+            "name": "Minimal Property",
+        }
+        loc = map_location(DaikinLocationResponse(**raw))
+
+        assert loc.id == "loc-min"
+        assert loc.name == "Minimal Property"
+        assert loc.street_address == ""
+        assert loc.apt == ""
+        assert loc.city == ""
+        assert loc.province == ""
+        assert loc.postal_code == ""
+        assert loc.country == ""
+        assert loc.time_zone == ""
+        assert loc.latitude is None
+        assert loc.longitude is None
+        assert loc.has_owner is False
+
+    def test_map_location_null_and_malformed_address(self) -> None:
+        raw_null = {
+            "id": "loc-null",
+            "name": "Null Address Property",
+            "address": None,
+            "city": None,
+            "province": None,
+            "postalCode": None,
+        }
+        loc_null = map_location(DaikinLocationResponse(**raw_null))
+        assert loc_null.street_address == ""
+        assert loc_null.apt == ""
+        assert loc_null.city == ""
+
+        raw_malformed = {
+            "id": "loc-malformed",
+            "name": "Malformed JSON Address",
+            "address": "{invalid json: 'no quotes'}",
+        }
+        loc_malformed = map_location(DaikinLocationResponse(**raw_malformed))
+        assert loc_malformed.street_address == "{invalid json: 'no quotes'}"
+        assert loc_malformed.apt == ""
+
+
+class TestThermostatScheduleMapping:
+    """Tests for 7-day x 6-period thermostat schedule mapping in mapping.py."""
+
+    @staticmethod
+    def _build_full_42_slot_schedule_data() -> dict[str, Any]:
+        """Generate a complete 252-key schedule block matching live Daikin One+ telemetry."""
+        sched: dict[str, Any] = {
+            "schedEnabled": True,
+            "schedOverride": 0,
+            "tempDeltaMin": 2,
+            "hspSched": 18.0,
+            "cspSched": 24.0,
+        }
+        days = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        default_parts = [
+            (1, True, 24, 20.0, 24.0, "wake"),
+            (2, True, 51, 20.0, 24.0, "afternoon"),
+            (3, True, 68, 20.0, 24.0, "dinner"),
+            (4, True, 76, 20.0, 24.0, "evening"),
+            (5, True, 84, 18.0, 24.0, "sleep"),
+            (6, False, 0, 17.5, 22.0, ""),
+        ]
+        for day in days:
+            for part, enabled, slot, hsp, csp, label in default_parts:
+                prefix = f"sched{day}Part{part}"
+                sched[f"{prefix}Action"] = 0
+                sched[f"{prefix}Enabled"] = enabled
+                sched[f"{prefix}Label"] = label
+                sched[f"{prefix}Time"] = slot
+                sched[f"{prefix}hsp"] = hsp
+                sched[f"{prefix}csp"] = csp
+        return sched
+
+    async def test_full_42_slot_schedule_mapped(self, daikin_client: DaikinOne) -> None:
+        """Verify all 7 days and 6 periods per day are accurately parsed into domain models."""
+        device_data = _make_device(self._build_full_42_slot_schedule_data())
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is False
+        assert thermostat.schedule.min_temp_delta == 2.0
+        assert thermostat.schedule.scheduled_heat_setpoint is not None
+        assert thermostat.schedule.scheduled_heat_setpoint.celsius == 18.0
+        assert thermostat.schedule.scheduled_cool_setpoint is not None
+        assert thermostat.schedule.scheduled_cool_setpoint.celsius == 24.0
+
+        assert thermostat.schedule.days is not None
+        assert set(thermostat.schedule.days.keys()) == {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+        mon = thermostat.schedule.days["mon"]
+        assert len(mon.periods) == 6
+
+        p1 = mon.periods[1]
+        assert p1.part == 1
+        assert p1.enabled is True
+        assert p1.start_slot == 24
+        assert p1.start_time_str == "06:00"
+        assert p1.heat_setpoint.celsius == 20.0
+        assert p1.cool_setpoint.celsius == 24.0
+        assert p1.label == "wake"
+        assert p1.action == 0
+
+        p2 = mon.periods[2]
+        assert p2.start_slot == 51
+        assert p2.start_time_str == "12:45"
+
+        p6 = mon.periods[6]
+        assert p6.part == 6
+        assert p6.enabled is False
+        assert p6.start_slot == 0
+        assert p6.start_time_str == "00:00"
+        assert p6.heat_setpoint.celsius == 17.5
+        assert p6.cool_setpoint.celsius == 22.0
+        assert p6.label == ""
+
+    async def test_schedule_days_none_when_no_part_keys_in_payload(self, daikin_client: DaikinOne) -> None:
+        """Verify schedule.days is None when payload only has schedEnabled and no sched<Day>Part<N> keys."""
+        device_data = _make_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is False
+        assert thermostat.schedule.days is None
+
+    async def test_schedule_handles_sentinel_or_invalid_slot_values_gracefully(self, daikin_client: DaikinOne) -> None:
+        """Verify out-of-range slots (e.g. 255 sentinel) clamp/reset to 0 without crashing."""
+        sched_data = {
+            "schedMonPart1Time": 255,
+            "schedMonPart1Enabled": False,
+            "schedMonPart1hsp": "invalid",
+            "schedMonPart1csp": None,
+            "schedMonPart1Label": None,
+            "tempDeltaMin": "bad",
+        }
+        device_data = _make_device(sched_data)
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.min_temp_delta == 2.0
+        assert thermostat.schedule.days is not None
+        p1 = thermostat.schedule.days["mon"].periods[1]
+        assert p1.start_slot == 0
+        assert p1.start_time_str == "00:00"
+        assert p1.enabled is False
+        assert p1.heat_setpoint.celsius == 20.0
+        assert p1.cool_setpoint.celsius == 24.0
+        assert p1.label == ""
+
+    async def test_thermostat_schedule_defaults_when_unpopulated(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is False
+        assert thermostat.sched_resume_time is None
+        assert thermostat.sched_override_duration is None
+
+    async def test_thermostat_schedule_active_override_mapping(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "schedEnabled": True,
+                "schedOverride": 1,
+                "schedResumeTime": 1792864800,
+                "schedOverrideDuration": 120,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.enabled is True
+        assert thermostat.schedule.override is True
+        assert thermostat.sched_resume_time == datetime(2026, 10, 24, 18, 0, 0, tzinfo=UTC)
+        assert thermostat.sched_override_duration == 120
+
+    async def test_thermostat_schedule_zero_or_negative_resume_time(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "schedEnabled": True,
+                "schedOverride": 0,
+                "schedResumeTime": 0,
+                "schedOverrideDuration": 0,
+            }
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.schedule.override is False
+        assert thermostat.sched_resume_time is None
+        assert thermostat.sched_override_duration == 0
+
+        # Negative epoch also returns None
+        device_data["data"]["schedResumeTime"] = -1
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.sched_resume_time is None
+
+
+class TestDetermineHeatSource:
+    """Tests for determine_heat_source logic."""
+
+    async def test_off_mode(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.OFF.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.NONE
+
+    async def test_idle_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.IDLE.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.NONE
+
+    async def test_cooling_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.COOL.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.COOLING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.NONE
+
+    async def test_circulating_air_status(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(OUTDOOR_UNIT_DATA, FURNACE_DATA)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.CIRCULATING_AIR.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.NONE
+
+    async def test_gas_furnace_active(self, daikin_client: DaikinOne) -> None:
+        furnace = {
+            **FURNACE_DATA,
+            "ctIFCCurrentHeatActualStatus": 70,
+            "ctIFCIndoorBlowerAirflow": 450,
+        }
+        device_data = _make_device(OUTDOOR_UNIT_DATA, furnace)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.GAS
+
+    async def test_heat_pump_steady_state(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heat",
+            "ctOutdoorHeatRequestedDemand": 80,
+            "ctCurrentCompressorRPS": 50,
+        }
+        ah = {
+            **AIR_HANDLER_DATA,
+            "ctAHCurrentIndoorAirflow": 450,
+            "ctAHHeatCurrentDemandStatus": 0,
+        }
+        device_data = _make_device(od, ah)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.HEAT_PUMP
+
+
+class TestHumidityControlsMapping:
+    async def test_humidity_setpoint_and_capabilities_mapped(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "humSP": 45,
+                "dehumSP": 55,
+                "ctSystemCapHumidification": 1,
+                "ctSystemCapDehumidification": 1,
+            }
+        )
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.hum_setpoint == 45
+        assert thermostat.dehum_setpoint == 55
+        assert thermostat.humidification_available is True
+        assert thermostat.dehumidification_available is True
+
+    async def test_humidity_controls_absent_and_sentinels(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device(
+            {
+                "humSP": 255,
+                "dehumSP": 255,
+                "ctSystemCapHumidification": 255,
+                "ctSystemCapDehumidification": 255,
+            }
+        )
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.hum_setpoint is None
+        assert thermostat.dehum_setpoint is None
+        assert thermostat.humidification_available is False
+        assert thermostat.dehumidification_available is False
+
+    async def test_humidity_controls_missing_keys_default_cleanly(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert thermostat.hum_setpoint is None
+        assert thermostat.dehum_setpoint is None
+        assert thermostat.humidification_available is False
+        assert thermostat.dehumidification_available is False
+
+    async def test_resistive_air_handler_heat_strips(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctCurrentCompressorRPS": 0,
+            "ctOutdoorHeatRequestedDemand": 0,
+        }
+        ah = {
+            **AIR_HANDLER_DATA,
+            "ctAHHeatCurrentDemandStatus": 80,
+            "ctAHCurrentIndoorAirflow": 400,
+        }
+        device_data = _make_device(od, ah)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.RESISTIVE
+
+    async def test_supplemental_electric_heat_reports_heat_pump(self, daikin_client: DaikinOne) -> None:
+        od = {
+            **OUTDOOR_UNIT_DATA,
+            "ctOutdoorMode": "heat",
+            "ctOutdoorHeatRequestedDemand": 100,
+            "ctCurrentCompressorRPS": 60,
+        }
+        ah = {
+            **AIR_HANDLER_DATA,
+            "ctAHHeatCurrentDemandStatus": 50,
+            "ctAHCurrentIndoorAirflow": 600,
+        }
+        device_data = _make_device(od, ah)
+        device_data["data"]["mode"] = DaikinThermostatMode.HEAT.value
+        device_data["data"]["equipmentStatus"] = DaikinThermostatStatus.HEATING.value
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        thermostat = daikin_client.get_thermostats()["device123"]
+        assert determine_heat_source(thermostat) == DaikinHeatSource.HEAT_PUMP
+
+
+class TestOneLiteMapping:
+    """Tests for Daikin One Lite 24V (D2271 / ONELITE_24V) payload normalization and mapping."""
+
+    async def test_one_lite_payload_normalization_and_mapping(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device()
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert tstat.is_one_lite is True
+        assert tstat.model == "ONELITE_24V"
+        assert tstat.indoor_temperature is not None
+        assert tstat.indoor_temperature.celsius == 21.5
+        assert tstat.indoor_humidity == 45
+        assert tstat.set_point_cool is not None
+        assert tstat.set_point_cool.celsius == 24.0
+        assert tstat.set_point_heat is not None
+        assert tstat.set_point_heat.celsius == 20.0
+        assert tstat.mode is DaikinThermostatMode.HEAT
+        assert tstat.status is DaikinThermostatStatus.HEATING
+        assert tstat.schedule.enabled is True
+        assert DaikinThermostatCapability.HEAT in tstat.capabilities
+        assert DaikinThermostatCapability.COOL in tstat.capabilities
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in tstat.capabilities
+        assert tstat.equipment == {}
+        assert tstat.air_quality_indoor is None
+        assert tstat.air_quality_outdoor is None
+
+    async def test_one_lite_detection_by_d2271_model(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(model="D2271")
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert tstat.is_one_lite is True
+        assert tstat.model == "D2271"
+
+    async def test_one_lite_detection_by_coolsp_with_unknown_model(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(model="UNKNOWN_STAT")
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert tstat.is_one_lite is True
+
+    async def test_one_lite_terminal_relay_capability_fallback(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(
+            data={"heat1": False, "cool1": False, "w1ObTerminal": True, "y1Terminal": True}
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert DaikinThermostatCapability.HEAT in tstat.capabilities
+        assert DaikinThermostatCapability.COOL in tstat.capabilities
+
+    async def test_one_lite_heat_only_capabilities(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(
+            data={"heat1": True, "cool1": False, "w1ObTerminal": False, "y1Terminal": False}
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert DaikinThermostatCapability.HEAT in tstat.capabilities
+        assert DaikinThermostatCapability.COOL not in tstat.capabilities
+
+    async def test_one_lite_cool_only_capabilities(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_one_lite_device(
+            data={"heat1": False, "cool1": True, "w1ObTerminal": False, "y1Terminal": False}
+        )
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite123"]
+        assert DaikinThermostatCapability.HEAT not in tstat.capabilities
+        assert DaikinThermostatCapability.COOL in tstat.capabilities
+
+    async def test_one_lite_defensive_defaults_for_missing_keys(self, daikin_client: DaikinOne) -> None:
+        minimal_data = {
+            "coolSP": 22.0,
+            "spaceTemp": 21.0,
+            "spaceHum": 50,
+            "mode": 2,
+            "eqStatus": 1,
+            "progOn": False,
+            "away": True,
+            "cool1": True,
+        }
+        device_data = {
+            "id": "onelite_minimal",
+            "locationId": "loc456",
+            "name": "Minimal One Lite",
+            "model": "D2271",
+            "firmware": "1.0.0",
+            "online": True,
+            "data": minimal_data,
+        }
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["onelite_minimal"]
+        assert tstat.is_one_lite is True
+        assert tstat.outdoor_temperature is None
+        assert tstat.outdoor_humidity is None
+        assert tstat.air_quality_outdoor is None
+        assert tstat.air_quality_indoor is None
+        assert tstat.set_point_heat is None
+        assert tstat.set_point_cool is not None
+        assert tstat.set_point_cool.celsius == 22.0
+        assert tstat.schedule.enabled is False
+        assert tstat.status is DaikinThermostatStatus.COOLING
+
+
+class TestCalibrationOffsetsMapping:
+    async def test_calibration_offsets_mapped_correctly(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["tempOffset"] = -1.5
+        device_data["data"]["humOffset"] = -3
+        device_data["data"]["units"] = 1
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset == -1.5
+        assert tstat.hum_offset == -3
+        assert tstat.units == 1
+
+    async def test_calibration_offsets_zero_preserved(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["tempOffset"] = 0
+        device_data["data"]["humOffset"] = 0
+        device_data["data"]["units"] = 0
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset == 0.0
+        assert tstat.hum_offset == 0
+        assert tstat.units == 0
+
+    async def test_calibration_offsets_none_when_keys_missing(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"].pop("tempOffset", None)
+        device_data["data"].pop("humOffset", None)
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset is None
+        assert tstat.hum_offset is None
+
+    async def test_calibration_offsets_sentinels_become_none(self, daikin_client: DaikinOne) -> None:
+        device_data = _make_device()
+        device_data["data"]["tempOffset"] = 255
+        device_data["data"]["humOffset"] = 255
+
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = [device_data]
+            await daikin_client.update()
+
+        tstat = daikin_client.get_thermostats()["device123"]
+        assert tstat.temp_offset is None
+        assert tstat.hum_offset is None
+
+
+P1P2_SINGLE_INDOOR_DATA: dict[str, Any] = {
+    "P1P2IndoorUnitDataValid": True,
+    "P1P2IndoorUnitModelNameManual": "FDMQ24RVJU\x00\x00\x00\x00\x00\x00",
+    "P1P2IndoorUnitModelName": "FDMQ24RVJU\x00\x00\x00\x00\x00\x00",
+    "P1P2IndoorUnitModelNameValid": True,
+    "P1P2IndoorUnitSerialNumber": "E001234\x00\x00\x00",
+    "P1P2IndoorSuctionAirThermistor": 21.5,
+    "P1P2IndoorSuctionAirThermistorValid": True,
+    "P1P2IndoorUnitDischargeAirThermistor": 0.0,
+    "P1P2IndoorUnitDischargeAirThermistorValid": False,
+    "P1P2IndoorUnitHeatExchangerThermistor": 12.3,
+    "P1P2IndoorUnitHeatExchangerThermistorValid": True,
+    "P1P2IndoorUnitHeatExchangerGasPipeThermistor": 15.4,
+    "P1P2IndoorUnitHeatExchangerGasPipeThermistorValid": True,
+    "P1P2IndoorUnitEEVOpenPulses": 250,
+    "P1P2IndoorUnitEEVOpenPulsesValid": True,
+    "P1P2IndoorUnitEnergizedTime": 1200,
+    "P1P2IndoorUnitEnergizedTimeValid": True,
+    "P1P2IndoorUnitOperatingTime": 800,
+    "P1P2IndoorUnitOperatingTimeValid": True,
+    "P1P2IndoorUnitFanOperationTime": 950,
+    "P1P2IndoorUnitFanOperationTimeValid": True,
+}
+
+P1P2_OUTDOOR_DATA_VALID: dict[str, Any] = {
+    "P1P2OutdoorUnitDataValid": True,
+    "P1P2OutdoorUnitModelNameManual": "4MXL36TVJU\x00\x00\x00",
+    "P1P2OutdoorUnitModelName": "4MXL36TVJU",
+    "P1P2OutdoorUnitModelNameValid": True,
+    "P1P2OutdoorUnitSerialNumber": "OD123456\x00\x00",
+    "P1P2OutdoorAirThermistor": 25.0,
+    "P1P2OutdoorAirThermistorValid": True,
+    "P1P2OutdoorUnitHeatExchangerThermistor": 35.2,
+    "P1P2OutdoorUnitHeatExchangerThermistorValid": True,
+    "P1P2OutdoorUnitHeatExchangerGasPipeThermistor": 40.1,
+    "P1P2OutdoorUnitHeatExchangerGasPipeThermistorValid": True,
+    "P1P2OutdoorUnitHeatExchangerDeicerThermistor": 30.0,
+    "P1P2OutdoorUnitHeatExchangerDeicerThermistorValid": True,
+    "P1P2OutdoorUnitDischargePipeThermistor": 65.5,
+    "P1P2OutdoorUnitDischargePipeThermistorValid": True,
+    "P1P2OutdoorUnitLiquidPipeThermistor": 33.1,
+    "P1P2OutdoorUnitLiquidPipeThermistorValid": True,
+    "P1P2OutdoorUnitEEVOpenPulses": 180,
+    "P1P2OutdoorUnitEEVOpenPulsesValid": True,
+    "P1P2OutdoorUnitOperatingTime": 1500,
+    "P1P2OutdoorUnitOperatingTimeValid": True,
+    "P1P2OutdoorUnitCompressor1OperationTime": 1400,
+    "P1P2OutdoorUnitCompressor1OperationTimeValid": True,
+    "P1P2OutdoorUnitCompressor2OperationTime": 0,
+    "P1P2OutdoorUnitCompressor2OperationTimeValid": True,
+    "P1P2OutdoorUnitFan1OperationTime": 1450,
+    "P1P2OutdoorUnitFan1OperationTimeValid": True,
+    "P1P2OutdoorUnitFan2OperationTime": 0,
+    "P1P2OutdoorUnitFan2OperationTimeValid": False,
+}
+
+P1P2_OUTDOOR_DATA_INVALID_RX24: dict[str, Any] = {
+    "P1P2OutdoorUnitDataValid": False,
+    "P1P2OutdoorUnitModelNameManual": "RX24RMVJU\x00\x00\x00",
+    "P1P2OutdoorUnitModelName": "7J-/071\x00\x00\x00\x00\x00\x00",
+    "P1P2OutdoorUnitModelNameValid": True,
+    "P1P2OutdoorUnitSerialNumber": "g003661h\x00\x00\x00",
+    "P1P2OutdoorAirThermistor": 0,
+    "P1P2OutdoorAirThermistorValid": False,
+    "P1P2OutdoorUnitHeatExchangerThermistor": 0,
+    "P1P2OutdoorUnitHeatExchangerThermistorValid": False,
+}
+
+NO_EQUIPMENT: dict[str, Any] = {
+    "ctAHUnitType": 255,
+    "ctIFCUnitType": 255,
+    "ctOutdoorUnitType": 255,
+    "ctCoilUnitType": 255,
+}
+
+
+def _make_device(*equipment_blocks: dict[str, Any]) -> dict[str, Any]:
+    data: dict[str, Any] = {**COMMON_THERMOSTAT_DATA, **NO_EQUIPMENT}
+    for block in equipment_blocks:
+        data.update(block)
+    return {
+        "id": "device123",
+        "locationId": "loc456",
+        "name": "Test Thermostat",
+        "model": "ONEPLUS",
+        "firmware": "1.0.0",
+        "online": True,
+        "data": data,
+    }
+
+
+# --- End-to-end: granular sanitization through DaikinOne.update ---
+
 
 class TestP1P2Mapping:
     async def test_p1p2_single_indoor_and_outdoor_mapping(self, daikin_client: DaikinOne) -> None:
@@ -781,3 +1850,210 @@ class TestP1P2Mapping:
 
         assert outdoor.serial is None
         assert outdoor.id == "device123-p1p2-outdoor"
+
+
+class TestThermostatCapabilitiesFallback:
+    """Test heating and cooling capability fallback to P1/P2 and emergency heat guards."""
+
+    def test_heating_capability_ct_system_cap(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapHeat"] = True
+        device_data["data"].pop("P1P2S21HeatingCapability", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.HEAT in thermostat.capabilities
+
+    def test_heating_capability_fallback_p1p2_when_ct_system_cap_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"].pop("ctSystemCapHeat", None)
+        device_data["data"]["P1P2S21HeatingCapability"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.HEAT in thermostat.capabilities
+
+    def test_heating_capability_fallback_p1p2_when_ct_system_cap_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapHeat"] = False
+        device_data["data"]["P1P2S21HeatingCapability"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.HEAT in thermostat.capabilities
+
+    def test_heating_capability_omitted_when_both_false_or_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapHeat"] = False
+        device_data["data"]["P1P2S21HeatingCapability"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.HEAT not in thermostat.capabilities
+
+    def test_cooling_capability_ct_system_cap(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapCool"] = True
+        device_data["data"].pop("P1P2S21CoolingCapability", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.COOL in thermostat.capabilities
+
+    def test_cooling_capability_fallback_p1p2_when_ct_system_cap_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"].pop("ctSystemCapCool", None)
+        device_data["data"]["P1P2S21CoolingCapability"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.COOL in thermostat.capabilities
+
+    def test_cooling_capability_fallback_p1p2_when_ct_system_cap_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapCool"] = False
+        device_data["data"]["P1P2S21CoolingCapability"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.COOL in thermostat.capabilities
+
+    def test_cooling_capability_omitted_when_both_false_or_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapCool"] = False
+        device_data["data"]["P1P2S21CoolingCapability"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.COOL not in thermostat.capabilities
+
+    def test_emergency_heat_capability_when_mode_em_heat_available_true(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_omitted_when_mode_em_heat_available_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"]["modeEmHeatAvailable"] = False
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+    def test_emergency_heat_capability_default_true_when_mode_em_heat_available_absent(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = True
+        device_data["data"].pop("modeEmHeatAvailable", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT in thermostat.capabilities
+
+    def test_emergency_heat_capability_omitted_when_system_cap_false(self) -> None:
+        device_data = _make_device()
+        device_data["data"]["ctSystemCapEmergencyHeat"] = False
+        device_data["data"]["modeEmHeatAvailable"] = True
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert DaikinThermostatCapability.EMERGENCY_HEAT not in thermostat.capabilities
+
+
+class TestThermostatSetpointRangeFallbacks:
+    """Test 3-tier setpoint range fallback chain: EquipProtocol* -> P1P2* -> tempSP*."""
+
+    def test_setpoint_limits_tier1_equip_protocol_precedence(self) -> None:
+        device_data = _make_device()
+        device_data["data"].update(
+            {
+                "EquipProtocolMinHeatSetpoint": 16.0,
+                "EquipProtocolMaxHeatSetpoint": 31.0,
+                "EquipProtocolMinCoolSetpoint": 18.0,
+                "EquipProtocolMaxCoolSetpoint": 30.0,
+                "P1P2MinHeatSetpoint": 100,
+                "P1P2MaxHeatSetpoint": 320,
+                "P1P2MinCoolSetpoint": 100,
+                "P1P2MaxCoolSetpoint": 320,
+                "tempSPMin": 50,
+                "tempSPMax": 350,
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+
+        assert thermostat.set_point_heat_min is not None
+        assert thermostat.set_point_heat_min.celsius == 16.0
+        assert thermostat.set_point_heat_max is not None
+        assert thermostat.set_point_heat_max.celsius == 31.0
+
+        assert thermostat.set_point_cool_min is not None
+        assert thermostat.set_point_cool_min.celsius == 18.0
+        assert thermostat.set_point_cool_max is not None
+        assert thermostat.set_point_cool_max.celsius == 30.0
+
+    def test_setpoint_limits_tier2_p1p2_fallback_when_equip_protocol_absent(self) -> None:
+        device_data = _make_device()
+        for key in (
+            "EquipProtocolMinHeatSetpoint",
+            "EquipProtocolMaxHeatSetpoint",
+            "EquipProtocolMinCoolSetpoint",
+            "EquipProtocolMaxCoolSetpoint",
+        ):
+            device_data["data"].pop(key, None)
+
+        device_data["data"].update(
+            {
+                "P1P2MinHeatSetpoint": 500,
+                "P1P2MaxHeatSetpoint": 900,
+                "P1P2MinCoolSetpoint": 600,
+                "P1P2MaxCoolSetpoint": 850,
+                "tempSPMin": 400,
+                "tempSPMax": 950,
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+
+        assert thermostat.set_point_heat_min is not None
+        assert thermostat.set_point_heat_min == Temperature.from_fahrenheit(50.0)
+        assert thermostat.set_point_heat_max is not None
+        assert thermostat.set_point_heat_max == Temperature.from_fahrenheit(90.0)
+
+        assert thermostat.set_point_cool_min is not None
+        assert thermostat.set_point_cool_min == Temperature.from_fahrenheit(60.0)
+        assert thermostat.set_point_cool_max is not None
+        assert thermostat.set_point_cool_max == Temperature.from_fahrenheit(85.0)
+
+    def test_setpoint_limits_tier3_tempsp_fallback_when_equip_and_p1p2_absent(self) -> None:
+        device_data = _make_device()
+        for key in (
+            "EquipProtocolMinHeatSetpoint",
+            "EquipProtocolMaxHeatSetpoint",
+            "EquipProtocolMinCoolSetpoint",
+            "EquipProtocolMaxCoolSetpoint",
+            "P1P2MinHeatSetpoint",
+            "P1P2MaxHeatSetpoint",
+            "P1P2MinCoolSetpoint",
+            "P1P2MaxCoolSetpoint",
+        ):
+            device_data["data"].pop(key, None)
+
+        device_data["data"].update(
+            {
+                "tempSPMin": 500,
+                "tempSPMax": 900,
+            }
+        )
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+
+        assert thermostat.set_point_heat_min is not None
+        assert thermostat.set_point_heat_min == Temperature.from_fahrenheit(50.0)
+        assert thermostat.set_point_heat_max is not None
+        assert thermostat.set_point_heat_max == Temperature.from_fahrenheit(90.0)
+
+        assert thermostat.set_point_cool_min is not None
+        assert thermostat.set_point_cool_min == Temperature.from_fahrenheit(50.0)
+        assert thermostat.set_point_cool_max is not None
+        assert thermostat.set_point_cool_max == Temperature.from_fahrenheit(90.0)
+
+    def test_setpoint_limits_all_absent_returns_none(self) -> None:
+        device_data = _make_device()
+        for key in (
+            "EquipProtocolMinHeatSetpoint",
+            "EquipProtocolMaxHeatSetpoint",
+            "EquipProtocolMinCoolSetpoint",
+            "EquipProtocolMaxCoolSetpoint",
+            "P1P2MinHeatSetpoint",
+            "P1P2MaxHeatSetpoint",
+            "P1P2MinCoolSetpoint",
+            "P1P2MaxCoolSetpoint",
+            "tempSPMin",
+            "tempSPMax",
+        ):
+            device_data["data"].pop(key, None)
+
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+
+        assert thermostat.set_point_heat_min is None
+        assert thermostat.set_point_heat_max is None
+        assert thermostat.set_point_cool_min is None
+        assert thermostat.set_point_cool_max is None
