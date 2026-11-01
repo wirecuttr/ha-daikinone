@@ -79,6 +79,7 @@ async def async_setup_entry(
                         icon="mdi:weather-night",
                         has_entity_name=True,
                         translation_key="night_mode",
+                        entity_category=EntityCategory.CONFIG,
                     ),
                 )
             )
@@ -272,19 +273,6 @@ class DaikinOneNightModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):
     def device_name(self) -> str:
         return f"{self._device.name} Thermostat"
 
-    @property
-    def is_on(self) -> bool:
-        return bool(self._device.night_mode_enabled)
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        attributes: dict[str, Any] = {}
-        if self._device.night_mode_active is not None:
-            attributes["night_mode_active"] = self._device.night_mode_active
-        if self._device.night_mode_light_bar_allowed is not None:
-            attributes["light_bar_allowed"] = self._device.night_mode_light_bar_allowed
-        return attributes
-
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._set_night_mode(True)
 
@@ -294,6 +282,7 @@ class DaikinOneNightModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):
     async def _set_night_mode(self, enabled: bool) -> None:
         def update(thermostat: DaikinThermostat) -> None:
             thermostat.night_mode_enabled = enabled
+            self.update_entity_attributes()
 
         await self.update_state_optimistically(
             operation=lambda: self._data.daikin.set_thermostat_night_mode(self._device.id, enabled),
@@ -305,8 +294,13 @@ class DaikinOneNightModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):
         return self._data.daikin.get_thermostat(self._device.id)
 
     def update_entity_attributes(self) -> None:
-        self._attr_is_on = self.is_on
-        self._attr_extra_state_attributes = self.extra_state_attributes
+        self._attr_is_on = bool(self._device.night_mode_enabled)
+        attributes: dict[str, Any] = {}
+        if self._device.night_mode_active is not None:
+            attributes["night_mode_active"] = self._device.night_mode_active
+        if self._device.night_mode_light_bar_allowed is not None:
+            attributes["light_bar_allowed"] = self._device.night_mode_light_bar_allowed
+        self._attr_extra_state_attributes = attributes
 
 
 class DaikinOneQuietModeSwitch(DaikinOneEntity[DaikinThermostat], SwitchEntity):

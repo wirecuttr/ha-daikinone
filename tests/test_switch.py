@@ -202,13 +202,17 @@ class TestEmergencyHeatSwitch:
             DaikinOneEmergencyHeatSwitch(SwitchEntityDescription(key="emergency_heat"), data_invalid, thermostat)
 
 
-def _thermostat(enabled: bool | None = True) -> DaikinThermostat:
+def _thermostat(
+    enabled: bool | None = True,
+    active: bool | None = False,
+    light_bar: bool | None = True,
+) -> DaikinThermostat:
     payload = _make_device()
     payload["data"].update(
         {
             "nightModeEnabled": enabled,
-            "nightModeActive": False,
-            "nightModeLightBarAllowed": True,
+            "nightModeActive": active,
+            "nightModeLightBarAllowed": light_bar,
         }
     )
     return map_thermostat(DaikinDeviceDataResponse(**payload))
@@ -248,6 +252,7 @@ async def test_setup_only_creates_switch_when_register_is_available() -> None:
     night_mode_switches = [entity for entity in entities if isinstance(entity, DaikinOneNightModeSwitch)]
     assert len(night_mode_switches) == 1
     assert night_mode_switches[0].unique_id == "device123-night_mode"
+    assert night_mode_switches[0].entity_category is EntityCategory.CONFIG
 
 
 def test_switch_state_and_optional_attributes() -> None:
@@ -258,9 +263,7 @@ def test_switch_state_and_optional_attributes() -> None:
         "light_bar_allowed": True,
     }
 
-    without_attributes, _ = _entity(_thermostat(enabled=False))
-    without_attributes._device.night_mode_active = None
-    without_attributes._device.night_mode_light_bar_allowed = None
+    without_attributes, _ = _entity(_thermostat(enabled=False, active=None, light_bar=None))
     assert without_attributes.is_on is False
     assert without_attributes.extra_state_attributes == {}
 

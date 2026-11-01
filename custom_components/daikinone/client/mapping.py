@@ -897,9 +897,7 @@ def _is_indoor_slot_populated(d: dict[str, Any], n: int) -> bool:
     auto_valid = bool(d.get(f"P1P2IndoorUnitModelNameUnit{n}Valid")) or bool(
         d.get(f"P1P2IndoorUnitModelNameValidUnit{n}")
     )
-    if auto_valid and _clean_string(d.get(f"P1P2IndoorUnitModelNameUnit{n}")):
-        return True
-    return False
+    return bool(auto_valid and _clean_string(d.get(f"P1P2IndoorUnitModelNameUnit{n}")))
 
 
 def _map_p1p2_indoor_units(payload: DaikinDeviceDataResponse) -> list[DaikinP1P2IndoorUnit]:
