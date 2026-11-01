@@ -216,6 +216,12 @@
       },
       "humidity_offset": {
         "name": "Humidity offset"
+      },
+      "away_heating_temperature": {
+        "name": "Away heating temperature"
+      },
+      "away_cooling_temperature": {
+        "name": "Away cooling temperature"
       }
     }
   },

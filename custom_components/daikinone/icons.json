@@ -87,6 +87,12 @@
       },
       "humidity_offset": {
         "default": "mdi:water-percent"
+      },
+      "away_heating_temperature": {
+        "default": "mdi:thermometer-chevron-down"
+      },
+      "away_cooling_temperature": {
+        "default": "mdi:thermometer-chevron-up"
       }
     }
   }

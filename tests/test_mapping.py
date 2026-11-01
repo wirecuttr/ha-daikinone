@@ -911,6 +911,26 @@ class TestMapThermostatAwayMode:
         thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
         assert thermostat.away_mode is None
 
+    def test_map_thermostat_away_setpoints_present(self) -> None:
+        """Verify that hspAway and cspAway map to Temperature objects."""
+        device_data = _make_device()
+        device_data["data"]["hspAway"] = 15.5
+        device_data["data"]["cspAway"] = 28.0
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.set_point_heat_away is not None
+        assert thermostat.set_point_heat_away.celsius == 15.5
+        assert thermostat.set_point_cool_away is not None
+        assert thermostat.set_point_cool_away.celsius == 28.0
+
+    def test_map_thermostat_away_setpoints_absent(self) -> None:
+        """Verify that absent hspAway and cspAway default to None."""
+        device_data = _make_device()
+        device_data["data"].pop("hspAway", None)
+        device_data["data"].pop("cspAway", None)
+        thermostat = map_thermostat(DaikinDeviceDataResponse(**device_data))
+        assert thermostat.set_point_heat_away is None
+        assert thermostat.set_point_cool_away is None
+
 
 class TestThermostatEmergencyHeatCapability:
     """Test emergency heat capability detection with modeEmHeatAvailable guard (Issue #25)."""

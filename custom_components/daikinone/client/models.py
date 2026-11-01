@@ -373,6 +373,8 @@ class DaikinThermostat(DaikinDevice):
     equipment: dict[str, DaikinEquipment] = Field(default_factory=dict)
     # Away Mode: True when geofencing away setback is active; None when unsupported
     away_mode: bool | None = None
+    set_point_heat_away: Temperature | None = None
+    set_point_cool_away: Temperature | None = None
     fan_circulate_start: int | None = None
     fan_circulate_stop: int | None = None
     fan_circulate_duration: DaikinThermostatFanCirculateDuration | None = None

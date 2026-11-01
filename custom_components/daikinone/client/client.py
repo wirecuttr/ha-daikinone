@@ -301,6 +301,35 @@ class DaikinOne:
             body={"geofencingAway": away},
         )
 
+    async def set_thermostat_away_set_points(
+        self,
+        thermostat_id: str,
+        heat: Temperature | None = None,
+        cool: Temperature | None = None,
+    ) -> None:
+        """Set thermostat away set points."""
+        if not heat and not cool:
+            raise ValueError("At least one of heat or cool set points must be set")
+
+        thermostat = self.__thermostats.get(thermostat_id)
+        payload: dict[str, Any] = {}
+        if heat is not None:
+            payload["hspAway"] = heat.celsius
+        if cool is not None:
+            payload["cspAway"] = cool.celsius
+
+        await self._transport.request(
+            url=f"{DAIKIN_API_URL_DEVICE_DATA}/{thermostat_id}",
+            method="PUT",
+            body=payload,
+        )
+
+        if thermostat:
+            if heat is not None:
+                thermostat.set_point_heat_away = heat
+            if cool is not None:
+                thermostat.set_point_cool_away = cool
+
     async def set_dual_fuel_furnace_lockout_enable(self, thermostat_id: str, enabled: bool) -> None:
         """Enable or disable dual-fuel furnace lockout (prioritize efficiency)."""
         await self._transport.request(

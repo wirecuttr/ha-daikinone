@@ -15,9 +15,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from custom_components.daikinone import DOMAIN, DaikinOneData
 from custom_components.daikinone.client.client import DaikinOne
-from custom_components.daikinone.client.models import DaikinThermostat
+from custom_components.daikinone.client.models import DaikinThermostat, DaikinThermostatCapability
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.entity import DaikinOneEntity
+from custom_components.daikinone.utils import Temperature
 
 DEBOUNCE_DELAY = 0.8
 MIN_BALANCE_POINT = -23.0
@@ -61,6 +62,30 @@ HUMIDITY_OFFSET_DESCRIPTION = NumberEntityDescription(
     mode=NumberMode.SLIDER,
 )
 
+AWAY_HEATING_TEMPERATURE_DESCRIPTION = NumberEntityDescription(
+    key="away_heating_temperature",
+    name="Away heating temperature",
+    icon="mdi:thermometer-chevron-down",
+    device_class=NumberDeviceClass.TEMPERATURE,
+    native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    native_step=0.5,
+    entity_category=EntityCategory.CONFIG,
+    has_entity_name=True,
+    mode=NumberMode.BOX,
+)
+
+AWAY_COOLING_TEMPERATURE_DESCRIPTION = NumberEntityDescription(
+    key="away_cooling_temperature",
+    name="Away cooling temperature",
+    icon="mdi:thermometer-chevron-up",
+    device_class=NumberDeviceClass.TEMPERATURE,
+    native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    native_step=0.5,
+    entity_category=EntityCategory.CONFIG,
+    has_entity_name=True,
+    mode=NumberMode.BOX,
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -78,6 +103,24 @@ async def async_setup_entry(
             entities.append(DaikinTemperatureOffsetNumber(data, thermostat))
         if thermostat.hum_offset is not None:
             entities.append(DaikinHumidityOffsetNumber(data, thermostat))
+        if thermostat.set_point_heat_away is not None and DaikinThermostatCapability.HEAT in thermostat.capabilities:
+            entities.append(
+                DaikinOneAwayTemperatureNumber(
+                    data,
+                    thermostat,
+                    AWAY_HEATING_TEMPERATURE_DESCRIPTION,
+                    is_heating=True,
+                )
+            )
+        if thermostat.set_point_cool_away is not None and DaikinThermostatCapability.COOL in thermostat.capabilities:
+            entities.append(
+                DaikinOneAwayTemperatureNumber(
+                    data,
+                    thermostat,
+                    AWAY_COOLING_TEMPERATURE_DESCRIPTION,
+                    is_heating=False,
+                )
+            )
 
     async_add_entities(entities, True)
 
@@ -296,3 +339,125 @@ class DaikinHumidityOffsetNumber(DaikinOneEntity[DaikinThermostat], NumberEntity
             optimistic_update=update,
             check=lambda thermostat: thermostat.hum_offset == int_value,
         )
+
+
+class DaikinOneAwayTemperatureNumber(DaikinOneEntity[DaikinThermostat], NumberEntity):
+    """Control the thermostat away temperature setpoint."""
+
+    _attr_device_class = NumberDeviceClass.TEMPERATURE
+    _attr_has_entity_name = True
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        data: DaikinOneData,
+        thermostat: DaikinThermostat,
+        description: NumberEntityDescription,
+        *,
+        is_heating: bool,
+    ) -> None:
+        super().__init__(data, thermostat)
+        self.entity_description = description
+        self._is_heating = is_heating
+        self._attr_translation_key = description.key
+        self._debounce_timer: asyncio.TimerHandle | None = None
+        self._target_value: float | None = None
+
+        match data.entry.data.get(CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY, 1):
+            case 0:
+                legacy_name = self.entity_description.name or self.name
+                self._attr_unique_id = f"{self._device.id}-{legacy_name}"
+            case 1:
+                self._attr_unique_id = f"{self._device.id}-{self.entity_description.key}"
+            case _:
+                raise ValueError("unexpected entity uid schema version")
+
+        self.update_entity_attributes()
+
+    @property
+    def device_name(self) -> str:
+        return f"{self._device.name} Thermostat"
+
+    @property
+    def native_value(self) -> float | None:
+        sp = self._device.set_point_heat_away if self._is_heating else self._device.set_point_cool_away
+        return sp.celsius if sp is not None else None
+
+    @property
+    def native_min_value(self) -> float:
+        if self._is_heating:
+            min_bound = self._device.set_point_heat_min.celsius if self._device.set_point_heat_min else 10.0
+        else:
+            min_bound = self._device.set_point_cool_min.celsius if self._device.set_point_cool_min else 10.0
+        val = self.native_value
+        return min(val, min_bound) if val is not None else min_bound
+
+    @property
+    def native_max_value(self) -> float:
+        if self._is_heating:
+            max_bound = self._device.set_point_heat_max.celsius if self._device.set_point_heat_max else 32.0
+        else:
+            max_bound = self._device.set_point_cool_max.celsius if self._device.set_point_cool_max else 37.0
+        val = self.native_value
+        return max(val, max_bound) if val is not None else max_bound
+
+    async def async_get_device(self) -> DaikinThermostat:
+        return self._data.daikin.get_thermostat(self._device.id)
+
+    def update_entity_attributes(self) -> None:
+        self._attr_native_value = self.native_value
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Optimistically update the value and coalesce rapid changes into one API write."""
+        new_temp = Temperature.from_celsius(value)
+        if self._is_heating:
+            self._device.set_point_heat_away = new_temp
+        else:
+            self._device.set_point_cool_away = new_temp
+        self._target_value = value
+        self.async_write_ha_state()
+
+        if self._debounce_timer is not None:
+            self._debounce_timer.cancel()
+        self._debounce_timer = self.hass.loop.call_later(
+            DEBOUNCE_DELAY,
+            lambda: self.hass.async_create_task(self._async_send_debounced_value()),
+        )
+
+    async def _async_send_debounced_value(self) -> None:
+        """Send the latest away setpoint value after the debounce interval."""
+        self._debounce_timer = None
+        target = self._target_value
+        if target is None:
+            return
+
+        target_temp = Temperature.from_celsius(target)
+
+        def update(thermostat: DaikinThermostat) -> None:
+            if self._is_heating:
+                thermostat.set_point_heat_away = target_temp
+            else:
+                thermostat.set_point_cool_away = target_temp
+            self.update_entity_attributes()
+
+        def check(thermostat: DaikinThermostat) -> bool:
+            current = thermostat.set_point_heat_away if self._is_heating else thermostat.set_point_cool_away
+            return current is not None and current.celsius == target
+
+        if self._is_heating:
+            operation = lambda: self._data.daikin.set_thermostat_away_set_points(self._device.id, heat=target_temp)
+        else:
+            operation = lambda: self._data.daikin.set_thermostat_away_set_points(self._device.id, cool=target_temp)
+
+        await self.update_state_optimistically(
+            operation=operation,
+            optimistic_update=update,
+            check=check,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel an unsent update when the entity is removed."""
+        if self._debounce_timer is not None:
+            self._debounce_timer.cancel()
+            self._debounce_timer = None
+        await super().async_will_remove_from_hass()

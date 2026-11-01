@@ -16,8 +16,11 @@ from custom_components.daikinone.client.models import DaikinThermostat
 from custom_components.daikinone.client.wire import DAIKIN_API_URL_DEVICE_DATA, DaikinDeviceDataResponse
 from custom_components.daikinone.const import CONF_OPTION_ENTITY_UID_SCHEMA_VERSION_KEY
 from custom_components.daikinone.number import (
+    AWAY_COOLING_TEMPERATURE_DESCRIPTION,
+    AWAY_HEATING_TEMPERATURE_DESCRIPTION,
     DEBOUNCE_DELAY,
     DaikinHumidityOffsetNumber,
+    DaikinOneAwayTemperatureNumber,
     DaikinOneDualFuelBalancePointNumber,
     DaikinTemperatureOffsetNumber,
     async_setup_entry,
@@ -30,12 +33,18 @@ def _make_thermostat(
     temp_offset: float | None = 0.0,
     hum_offset: int | None = 0,
     units: int = 0,
+    hsp_away: float | None = None,
+    csp_away: float | None = None,
 ) -> DaikinThermostat:
     payload = _make_device()
     payload["data"]["auxHeatLockoutTemp"] = value
     payload["data"]["tempOffset"] = temp_offset
     payload["data"]["humOffset"] = hum_offset
     payload["data"]["units"] = units
+    if hsp_away is not None:
+        payload["data"]["hspAway"] = hsp_away
+    if csp_away is not None:
+        payload["data"]["cspAway"] = csp_away
     return map_thermostat(DaikinDeviceDataResponse(**payload))
 
 
@@ -47,6 +56,7 @@ def _data_for(thermostat: DaikinThermostat, schema: int = 1) -> DaikinOneData:
     daikin.set_thermostat_aux_heat_lockout_temp = AsyncMock()
     daikin.set_temperature_offset = AsyncMock()
     daikin.set_humidity_offset = AsyncMock()
+    daikin.set_thermostat_away_set_points = AsyncMock()
     data = DaikinOneData(_hass=None, entry=entry, daikin=daikin)  # type: ignore[arg-type]
     data.update = AsyncMock()  # type: ignore[method-assign]
     return data
@@ -337,3 +347,158 @@ async def test_async_get_device() -> None:
 
     assert await temp_entity.async_get_device() is thermostat
     assert await hum_entity.async_get_device() is thermostat
+
+
+async def test_setup_creates_away_temperature_entities_when_registers_populated() -> None:
+    thermostat = _make_thermostat(
+        value=None,
+        temp_offset=None,
+        hum_offset=None,
+        hsp_away=15.5,
+        csp_away=28.0,
+    )
+    data = _data_for(thermostat)
+    entities: list[object] = []
+    hass = SimpleNamespace(data={DOMAIN: data})
+
+    await async_setup_entry(
+        hass,  # type: ignore[arg-type]
+        data.entry,
+        lambda added, update_before_add=False: entities.extend(added),
+    )
+
+    assert len(entities) == 2
+    heat_entity = next(e for e in entities if isinstance(e, DaikinOneAwayTemperatureNumber) and e._is_heating)
+    cool_entity = next(e for e in entities if isinstance(e, DaikinOneAwayTemperatureNumber) and not e._is_heating)
+    assert heat_entity.entity_description.key == "away_heating_temperature"
+    assert cool_entity.entity_description.key == "away_cooling_temperature"
+
+
+def test_away_heating_temperature_entity_attributes() -> None:
+    thermostat = _make_thermostat(hsp_away=16.0)
+    data = _data_for(thermostat, schema=1)
+    entity = DaikinOneAwayTemperatureNumber(
+        data,
+        thermostat,
+        AWAY_HEATING_TEMPERATURE_DESCRIPTION,
+        is_heating=True,
+    )
+
+    assert entity.unique_id == "device123-away_heating_temperature"
+    assert entity.entity_description.name == "Away heating temperature"
+    assert entity.device_name == "Test Thermostat Thermostat"
+    assert entity.device_class == NumberDeviceClass.TEMPERATURE
+    assert entity.entity_category == EntityCategory.CONFIG
+    assert entity.mode == NumberMode.BOX
+    assert entity.native_value == 16.0
+    assert entity.native_step == 0.5
+    assert entity.native_unit_of_measurement == UnitOfTemperature.CELSIUS
+    assert entity.native_min_value == 10.0
+    assert entity.native_max_value == 30.0
+
+    # Schema v0 unique ID fallback
+    legacy_entity = DaikinOneAwayTemperatureNumber(
+        _data_for(thermostat, schema=0),
+        thermostat,
+        AWAY_HEATING_TEMPERATURE_DESCRIPTION,
+        is_heating=True,
+    )
+    assert legacy_entity.unique_id == "device123-Away heating temperature"
+
+
+def test_away_cooling_temperature_entity_attributes() -> None:
+    thermostat = _make_thermostat(csp_away=27.5)
+    data = _data_for(thermostat, schema=1)
+    entity = DaikinOneAwayTemperatureNumber(
+        data,
+        thermostat,
+        AWAY_COOLING_TEMPERATURE_DESCRIPTION,
+        is_heating=False,
+    )
+
+    assert entity.unique_id == "device123-away_cooling_temperature"
+    assert entity.entity_description.name == "Away cooling temperature"
+    assert entity.device_name == "Test Thermostat Thermostat"
+    assert entity.device_class == NumberDeviceClass.TEMPERATURE
+    assert entity.entity_category == EntityCategory.CONFIG
+    assert entity.mode == NumberMode.BOX
+    assert entity.native_value == 27.5
+    assert entity.native_step == 0.5
+    assert entity.native_unit_of_measurement == UnitOfTemperature.CELSIUS
+    assert entity.native_min_value == 18.0
+    assert entity.native_max_value == 32.0
+
+
+async def test_away_temperature_debounced_write() -> None:
+    thermostat = _make_thermostat(hsp_away=16.0)
+    data = _data_for(thermostat)
+    entity = DaikinOneAwayTemperatureNumber(
+        data,
+        thermostat,
+        AWAY_HEATING_TEMPERATURE_DESCRIPTION,
+        is_heating=True,
+    )
+    entity.hass = _make_hass()
+    entity.async_write_ha_state = MagicMock()
+
+    # Step through rapid set points: 16.5, 17.0, 17.5
+    await entity.async_set_native_value(16.5)
+    await entity.async_set_native_value(17.0)
+    await entity.async_set_native_value(17.5)
+
+    assert entity.native_value == 17.5
+    data.daikin.set_thermostat_away_set_points.assert_not_called()
+
+    # Wait for debounce timer to fire
+    await asyncio.sleep(DEBOUNCE_DELAY + 0.1)
+
+    data.daikin.set_thermostat_away_set_points.assert_awaited_once()
+    call_args = data.daikin.set_thermostat_away_set_points.call_args
+    assert call_args[0][0] == "device123"
+    assert call_args[1]["heat"].celsius == 17.5
+
+
+async def test_away_temperature_cooling_debounced_write() -> None:
+    thermostat = _make_thermostat(csp_away=26.0)
+    data = _data_for(thermostat)
+    entity = DaikinOneAwayTemperatureNumber(
+        data,
+        thermostat,
+        AWAY_COOLING_TEMPERATURE_DESCRIPTION,
+        is_heating=False,
+    )
+    entity.hass = _make_hass()
+    entity.async_write_ha_state = MagicMock()
+
+    await entity.async_set_native_value(27.0)
+    assert entity.native_value == 27.0
+    data.daikin.set_thermostat_away_set_points.assert_not_called()
+
+    await asyncio.sleep(DEBOUNCE_DELAY + 0.1)
+
+    data.daikin.set_thermostat_away_set_points.assert_awaited_once()
+    call_args = data.daikin.set_thermostat_away_set_points.call_args
+    assert call_args[0][0] == "device123"
+    assert call_args[1]["cool"].celsius == 27.0
+
+
+async def test_away_temperature_removal_cancels_timer() -> None:
+    thermostat = _make_thermostat(hsp_away=16.0)
+    data = _data_for(thermostat)
+    entity = DaikinOneAwayTemperatureNumber(
+        data,
+        thermostat,
+        AWAY_HEATING_TEMPERATURE_DESCRIPTION,
+        is_heating=True,
+    )
+    entity.hass = _make_hass()
+    entity.async_write_ha_state = MagicMock()
+
+    await entity.async_set_native_value(18.0)
+    assert entity._debounce_timer is not None
+
+    await entity.async_will_remove_from_hass()
+    assert entity._debounce_timer is None
+
+    await asyncio.sleep(DEBOUNCE_DELAY + 0.1)
+    data.daikin.set_thermostat_away_set_points.assert_not_called()

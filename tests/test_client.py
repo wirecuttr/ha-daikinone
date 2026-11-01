@@ -222,6 +222,43 @@ class TestUnsupportedDeviceHandling:
             )
 
 
+class TestSetThermostatAwaySetPoints:
+    async def test_set_thermostat_away_set_points_heat_only(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_away_set_points("device123", heat=Temperature.from_celsius(16.0))
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"hspAway": 16.0},
+            )
+
+    async def test_set_thermostat_away_set_points_cool_only(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_away_set_points("device123", cool=Temperature.from_celsius(27.5))
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"cspAway": 27.5},
+            )
+
+    async def test_set_thermostat_away_set_points_both(self, daikin_client: DaikinOne) -> None:
+        with patch.object(daikin_client._transport, "request", new_callable=AsyncMock) as mock_req:
+            await daikin_client.set_thermostat_away_set_points(
+                "device123",
+                heat=Temperature.from_celsius(15.0),
+                cool=Temperature.from_celsius(28.0),
+            )
+            mock_req.assert_called_once_with(
+                url=f"{DAIKIN_API_URL_DEVICE_DATA}/device123",
+                method="PUT",
+                body={"hspAway": 15.0, "cspAway": 28.0},
+            )
+
+    async def test_set_thermostat_away_set_points_neither_raises(self, daikin_client: DaikinOne) -> None:
+        with pytest.raises(ValueError, match="At least one of heat or cool set points must be set"):
+            await daikin_client.set_thermostat_away_set_points("device123")
+
+
 class TestOfflineDeviceHandling:
     async def test_offline_device_with_empty_data_marks_cached_thermostat_offline(
         self, daikin_client: DaikinOne, caplog: pytest.LogCaptureFixture

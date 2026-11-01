@@ -338,6 +338,8 @@ def map_thermostat(payload: DaikinDeviceDataResponse) -> DaikinThermostat:
         dual_fuel_furnace_lockout_enable=payload.data.get("ctDualFuelFurnaceLockoutEnable"),
         equipment=map_equipment(payload) if not is_one_lite else {},
         away_mode=away_mode,
+        set_point_heat_away=_read_field(payload.data, f.F_SETPOINT_HEAT_AWAY),
+        set_point_cool_away=_read_field(payload.data, f.F_SETPOINT_COOL_AWAY),
         fan_circulate_start=_time_slot(payload.data.get("fanCirculateStart")),
         fan_circulate_stop=_time_slot(payload.data.get("fanCirculateStop")),
         fan_circulate_duration=(
