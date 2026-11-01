@@ -7,6 +7,37 @@ and this project adheres to [Calendar Versioning](https://calver.org/) (`YYYY.MM
 
 ---
 
+## [2026.11.0] - 2026-11-01
+
+### Overview
+This release refines UI entity categorization and expands community hardware documentation. The thermostat Night Mode switch has been migrated to the Configuration entity category to eliminate control card clutter, and the integration documentation now includes a verified community equipment compatibility matrix covering communicating thermostats, inverter heat pumps, air conditioners, air handlers, furnaces, and accessory coils.
+
+* **Test Suite:** 433 automated unit tests (100% pass rate).
+* **Static Typing & Quality Gates:** 0 errors across `ty check custom_components`, `ruff check .`, and `ruff format`.
+* **Upstream PRs:** [#141](https://github.com/zlangbert/ha-daikinone/pull/141) (updated), [#152](https://github.com/zlangbert/ha-daikinone/pull/152).
+* **Hardware Verification:** Tested and deployed on dual communicating split systems (Daikin Fit heat pump + Daikin two-stage gas furnace) in production.
+
+---
+
+### Features & Enhancements
+
+#### 1. Thermostat Night Mode Entity Category Migration
+* **Configuration Category Alignment:** Moved `switch.<thermostat>_night_mode` to `entity_category=EntityCategory.CONFIG`. The switch now resides logically in the device Configuration card alongside schedule start/stop time controls, preventing operational dashboard clutter.
+* **Core Entity Lifecycle Refactoring:** Refactored `DaikinOneNightModeSwitch` state updates to manage `self._attr_is_on` and `self._attr_extra_state_attributes` directly in `update_entity_attributes()`, strictly adhering to Home Assistant Core entity lifecycle standards.
+* **Automated Unit Testing:** Added test coverage ensuring `entity_category is EntityCategory.CONFIG` for night mode switches.
+
+#### 2. Supported Equipment Compatibility Matrix
+* **Community Model Catalog:** Expanded `README.md` with an extensive hardware compatibility matrix cross-referencing communicating equipment models confirmed functional across community installations.
+* **Model Families Documented:**
+  - **Thermostats:** Daikin One+ (`ONEPLUS` / `DTST-CW-A-A`), Daikin One Lite 24V (`ONELITE_24V` / `D2271`), Amana Smart Thermostat (`ATST-CWE-BL-A`).
+  - **Air Handlers & Indoor Units:** Daikin DFVE variable-speed (`DFVE60DP`), Daikin FDMQ slim-duct concealed units (`FDMQ12`, `FDMQ18`, `FDMQ24`), FTWR ductless mini-splits, FTQ SkyAir air handlers (`FTQ24`, `FTQ42`).
+  - **Heat Pumps & Inverter Outdoor Units:** Daikin Fit DH7VS / DH7VSA (`DH7VSA4810`, `DH7VSA6010`), Daikin 4MXL multi-zone heat pump (`4MXL36TVJU`), Daikin SkyAir RZQ series (`RZQ24`, `RZQ42`), Amana ASZS6 inverter heat pump (`ASZS603610`), Goodman GSXC16 communicating inverter heat pump / AC (`GSXC160481CC`).
+  - **Air Conditioners:** Daikin Fit DX17VS / DX17VSS (`DX17VSS241BA`, `DX17VSS601AA`).
+  - **Furnaces:** Daikin DR96TC two-stage gas furnace (`DR96TC080`, `DR96TC100`), Amana AMVM97 modulating gas furnace (`AMVM970803`), Goodman GMVM97 modulating gas furnace.
+  - **Coils & Accessories:** Communicating EEV coils (`CAPEA`, `CHPE`, `2301AC` series), Daikin One Home Air Monitor (Haven IAQ), EWC Controls UT-3000 communicating zone board.
+
+---
+
 ## [2026.10.2] - 2026-10-25
 
 ### Overview
