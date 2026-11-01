@@ -83,7 +83,7 @@ When configured, the integration creates device entries for each thermostat alon
 * **HVAC Modes:** `heat`, `cool`, `heat_cool` (Auto), `emergency_heat`, and `off`.
 * **Native HVAC Actions:** Reports true operating states directly to Home Assistant: `heating`, `cooling`, `idle`, `fan`, `defrosting`, and `preheating`.
 * **Humidity Control:** Direct target humidity slider (25% to 65%) exposed via `climate.set_humidity` whenever humidification or dehumidification hardware is detected.
-* **Preset Modes:** Supports `none`, `away`, and `eco`.
+* **Preset Modes:** Supports `none` and `away`.
 * **Optimistic Transport Updates:** Writes apply immediately in the UI without rubber-banding while awaiting the cloud polling cycle.
 
 ### Telemetry & Diagnostic Sensors
